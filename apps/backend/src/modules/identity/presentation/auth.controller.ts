@@ -11,6 +11,7 @@ import {
   ConflictException,
   NotFoundException,
   BadRequestException,
+  ServiceUnavailableException,
 } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagger';
 import { Throttle } from '@nestjs/throttler';
@@ -127,106 +128,45 @@ export class AuthController {
   }
 
   // ── POST /auth/login/google ────────────────────────────────────────────────
+  //
+  // SECURITY — DISABLED 2026-08-22 (full account takeover).
+  //
+  // The previous implementation base64-decoded the ID token payload and trusted
+  // it: no signature verification, no `aud` check, no `iss` check, no `exp`
+  // check, no call to the provider's JWKS. It then resolved the user BY EMAIL
+  // and issued a real RS256 token pair. Anyone could forge
+  //   base64({"sub":"x","email":"<any admin email>"})
+  // and receive a valid session for that account, SuperAdmin included.
+  //
+  // The decoder (`parseSocialToken`) and the login path (`handleSocialLogin`)
+  // were DELETED, not merely bypassed — dormant vulnerable code invites
+  // re-enabling. Recover them from git history when implementing verification
+  // properly (google-auth-library / apple-signin-auth against JWKS + aud).
+  //
+  // Until then these routes are closed, which also makes the running system
+  // match the documentation (TECH-DEBT-007: "OAuth not implemented").
   @Post('login/google')
-  @HttpCode(HttpStatus.OK)
   @Throttle({ default: { limit: 10, ttl: 60000 } })
-  @ApiOperation({ summary: 'Login or register via Google ID Token' })
-  async loginGoogle(@Body() dto: SocialLoginDto, @Req() req: Request) {
-    const { sub, email, name } = this.parseSocialToken(dto.idToken, 'google', dto);
-    return this.handleSocialLogin('google', sub, email, dto.fullName || name, req);
+  @ApiOperation({ summary: 'DISABLED — Google login is not available (see TECH-DEBT-007)' })
+  @ApiResponse({ status: 503, description: 'OAuth login is disabled' })
+  loginGoogle(): never {
+    throw new ServiceUnavailableException({
+      code: 'AUTH_OAUTH_DISABLED',
+      message: 'تسجيل الدخول عبر Google غير متاح حالياً، يرجى استخدام البريد الإلكتروني',
+    });
   }
 
   // ── POST /auth/login/apple ─────────────────────────────────────────────────
+  // Disabled for the same reason as /auth/login/google — see the note above.
   @Post('login/apple')
-  @HttpCode(HttpStatus.OK)
   @Throttle({ default: { limit: 10, ttl: 60000 } })
-  @ApiOperation({ summary: 'Login or register via Apple ID Token' })
-  async loginApple(@Body() dto: SocialLoginDto, @Req() req: Request) {
-    const { sub, email, name } = this.parseSocialToken(dto.idToken, 'apple', dto);
-    return this.handleSocialLogin('apple', sub, email, dto.fullName || name, req);
-  }
-
-  private parseSocialToken(
-    idToken: string,
-    provider: 'google' | 'apple',
-    dto: SocialLoginDto,
-  ): { sub: string; email?: string; name?: string } {
-    try {
-      const parts = idToken.split('.');
-      if (parts.length === 3) {
-        const payloadStr = Buffer.from(parts[1], 'base64').toString('utf8');
-        const payload = JSON.parse(payloadStr);
-        return {
-          sub: payload.sub || dto.idToken,
-          email: payload.email || dto.email,
-          name: payload.name || dto.fullName,
-        };
-      }
-    } catch {
-      // Fallback
-    }
-
-    return {
-      sub: dto.idToken.length > 36 ? dto.idToken.slice(0, 36) : dto.idToken,
-      email: dto.email,
-      name: dto.fullName,
-    };
-  }
-
-  private async handleSocialLogin(
-    provider: 'google' | 'apple',
-    providerId: string,
-    emailStr: string | undefined,
-    fullNameStr: string | undefined,
-    req: Request,
-  ) {
-    const existingIdentity = await this.socialRepo.findOne({
-      where: { provider, providerId },
+  @ApiOperation({ summary: 'DISABLED — Apple login is not available (see TECH-DEBT-007)' })
+  @ApiResponse({ status: 503, description: 'OAuth login is disabled' })
+  loginApple(): never {
+    throw new ServiceUnavailableException({
+      code: 'AUTH_OAUTH_DISABLED',
+      message: 'تسجيل الدخول عبر Apple غير متاح حالياً، يرجى استخدام البريد الإلكتروني',
     });
-
-    let user: User | null = null;
-
-    if (existingIdentity) {
-      user = await this.userRepo.findById(existingIdentity.userId);
-    } else {
-      if (emailStr) {
-        user = await this.userRepo.findByEmail(emailStr);
-      }
-
-      if (!user) {
-        const emailVo = emailStr ? EmailAddress.create(emailStr) : undefined;
-        user = await this.userRepo.save(
-          User.create({
-            id: null as never,
-            fullName: fullNameStr || (provider === 'google' ? 'مستخدم Google' : 'مستخدم Apple'),
-            email: emailVo,
-            phoneE164: null,
-            passwordHash: null,
-          }),
-        );
-        await this.userRepo.assignRole(user.id.value, 'User');
-      }
-
-      const identityEntity = this.socialRepo.create({
-        id: randomUUID(),
-        userId: user.id.value,
-        provider,
-        providerId,
-        email: emailStr,
-      });
-      await this.socialRepo.save(identityEntity);
-    }
-
-    if (!user) {
-      throw new UnauthorizedException({ code: 'AUTH_INVALID_CREDENTIALS', message: 'Could not resolve user identity' });
-    }
-
-    if (user.isSuspended) {
-      throw new UnauthorizedException({ code: 'AUTH_ACCOUNT_SUSPENDED', message: 'Account is suspended' });
-    }
-
-    const role = await this.userRepo.getPrimaryRole(user.id.value);
-    return this.issueTokenPair(user, role, req);
   }
 
   // ── POST /auth/token/refresh ───────────────────────────────────────────────
