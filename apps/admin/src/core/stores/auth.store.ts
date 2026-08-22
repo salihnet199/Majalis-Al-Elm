@@ -1,7 +1,20 @@
 import { create } from 'zustand';
-import { persist } from 'zustand/middleware';
+import { createJSONStorage, persist } from 'zustand/middleware';
 import { immer } from 'zustand/middleware/immer';
 import { Role, UserProfile } from '../types/auth.types';
+
+const STORAGE_KEY = 'majlis_admin_auth';
+
+/**
+ * One-time purge of the legacy localStorage slice.
+ *
+ * Tokens are no longer written to localStorage. Any pre-existing slice is
+ * discarded rather than migrated, because it may hold a forged SuperAdmin
+ * session minted by the removed offline-login fallback.
+ */
+if (typeof window !== 'undefined') {
+  window.localStorage?.removeItem(STORAGE_KEY);
+}
 
 interface AuthState {
   user: UserProfile | null;
@@ -57,7 +70,12 @@ export const useAuthStore = create<AuthState>()(
         }),
     })),
     {
-      name: 'majlis_admin_auth',
+      name: STORAGE_KEY,
+      // Interim transport until HttpOnly cookies land: sessionStorage keeps
+      // tokens off disk and scopes them to the tab, instead of localStorage.
+      storage: createJSONStorage(() => sessionStorage),
+      // Tokens and the authenticated flag persist together — never split them,
+      // or a reload could restore `isAuthenticated: true` with no real token.
       partialize: (state) => ({
         user: state.user,
         accessToken: state.accessToken,

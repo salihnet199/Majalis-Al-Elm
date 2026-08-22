@@ -59,21 +59,9 @@ export const LoginScreen: React.FC = () => {
       } else if (err.response?.data?.error?.code === 'AUTH_ACCOUNT_SUSPENDED') {
         setErrorMessage('هذا الحساب موقوف حالياً. يرجى التواصل مع الإدارة العليا.');
       } else {
-        // Offline / Live Preview Mode: allow direct login as Sheikh Ali Al-Waisi (SuperAdmin)
-        setAuth(
-          {
-            id: '01916362-7000-7000-8000-000000000001',
-            email: values.email.trim() || 'sheikh.ali@majalis-elm.app',
-            fullName: 'فضيلة الشيخ علي الويسي',
-            role: 'SuperAdmin',
-            isSuspended: false,
-            createdAt: '2026-01-01T00:00:00Z',
-          },
-          'preview-mock-token-jwt',
-          'preview-mock-refresh-token',
-        );
-        const origin = (location.state as { from?: { pathname?: string } })?.from?.pathname || '/dashboard';
-        navigate(origin, { replace: true });
+        // No session is ever created on failure — network, 5xx and CORS errors
+        // must surface as errors, never as a local fallback identity.
+        setErrorMessage('تعذر تسجيل الدخول، تحقق من الاتصال أو من صحة البيانات.');
       }
     } finally {
       setLoading(false);

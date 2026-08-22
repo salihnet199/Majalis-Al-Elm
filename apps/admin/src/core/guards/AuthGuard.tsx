@@ -7,10 +7,12 @@ interface AuthGuardProps {
 }
 
 export const AuthGuard: React.FC<AuthGuardProps> = ({ children }) => {
-  const { isAuthenticated } = useAuthStore();
+  const { isAuthenticated, accessToken } = useAuthStore();
   const location = useLocation();
 
-  if (!isAuthenticated) {
+  // A real access token is required, not just the flag — a session without one
+  // cannot call the API and must never be treated as authenticated.
+  if (!isAuthenticated || !accessToken) {
     return <Navigate to="/login" state={{ from: location }} replace />;
   }
 

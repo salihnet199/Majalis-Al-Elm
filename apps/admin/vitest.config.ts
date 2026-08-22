@@ -7,8 +7,10 @@ export default defineConfig({
   test: {
     globals: true,
     environment: 'jsdom',
-    setupFiles: ['./apps/admin/src/test/setup.ts'],
-    include: ['apps/admin/src/**/*.spec.{ts,tsx}'],
+    // Paths are relative to this config's dir (apps/admin) — the Nx `test`
+    // target runs vitest with cwd: apps/admin.
+    setupFiles: ['./src/test/setup.ts'],
+    include: ['src/**/*.spec.{ts,tsx}'],
     alias: {
       '@': path.resolve(__dirname, './src'),
     },
