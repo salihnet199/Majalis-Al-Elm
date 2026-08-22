@@ -1,5 +1,6 @@
 import { registerAs } from '@nestjs/config';
 import Joi from 'joi';
+import { TEST_ONLY_JWT_SECRET } from './jwt-key-integrity';
 
 /**
  * Application Configuration
@@ -59,7 +60,6 @@ export const validationSchema = Joi.object({
   DATABASE_USER: Joi.string().required(),
   DATABASE_PASSWORD: Joi.string().required(),
   DATABASE_SSL: Joi.boolean().default(false),
-  // JWT: at least one of private key path or inline value must be provided
   JWT_ACCESS_TOKEN_TTL: Joi.number().default(900),
   JWT_REFRESH_TOKEN_TTL: Joi.number().default(604800),
   THROTTLE_TTL: Joi.number().default(60000),
@@ -67,11 +67,52 @@ export const validationSchema = Joi.object({
   LOG_LEVEL: Joi.string().valid('trace', 'debug', 'info', 'warn', 'error', 'fatal').default('info'),
 }).options({ allowUnknown: true }); // allow extra env vars (SMTP, FCM, etc.)
 
+/**
+ * JWT signing material — REQUIRED in every environment except `test`.
+ *
+ * TECH-DEBT-013 / POLICY-SEC-001: the previous schema only *documented* this
+ * requirement in a comment and enforced nothing, while JwtRs256Adapter silently
+ * downgraded to HS256 with a public constant whenever a key was absent. A
+ * missing key must abort the boot, never weaken the algorithm.
+ *
+ * `.or()` = at least one of the pair. `.invalid()` rejects the test sentinel
+ * even if someone exports it as a real env var.
+ */
+export const jwtKeyRequirementSchema = Joi.object({
+  JWT_PRIVATE_KEY_PATH: Joi.string().trim().min(1),
+  JWT_PUBLIC_KEY_PATH: Joi.string().trim().min(1),
+  JWT_PRIVATE_KEY: Joi.string().trim().min(1).invalid(TEST_ONLY_JWT_SECRET),
+  JWT_PUBLIC_KEY: Joi.string().trim().min(1).invalid(TEST_ONLY_JWT_SECRET),
+})
+  .or('JWT_PRIVATE_KEY_PATH', 'JWT_PRIVATE_KEY')
+  .or('JWT_PUBLIC_KEY_PATH', 'JWT_PUBLIC_KEY')
+  .unknown(true)
+  .messages({
+    'object.missing':
+      'a JWT RS256 key pair is required outside NODE_ENV=test — set JWT_PRIVATE_KEY_PATH or ' +
+      'JWT_PRIVATE_KEY, and JWT_PUBLIC_KEY_PATH or JWT_PUBLIC_KEY. Run scripts/gen-jwt-keys.sh ' +
+      'to generate development keys',
+    'any.invalid':
+      'the test-only symmetric secret must never be used as a JWT key outside NODE_ENV=test — ' +
+      'it is a public constant committed to the repository',
+  });
+
 /** validateConfig is passed to ConfigModule.forRoot({ validate }) */
 export function validateConfig(config: Record<string, unknown>) {
   const { error, value } = validationSchema.validate(config);
   if (error) {
     throw new Error(`Configuration validation error: ${error.message}`);
   }
+
+  // An unset NODE_ENV defaults to 'development' — i.e. keys ARE required.
+  // Only an explicit NODE_ENV=test may run on the symmetric secret.
+  const nodeEnv = (value as { NODE_ENV?: string }).NODE_ENV ?? 'development';
+  if (nodeEnv !== 'test') {
+    const { error: jwtError } = jwtKeyRequirementSchema.validate(value);
+    if (jwtError) {
+      throw new Error(`Configuration validation error: ${jwtError.message}`);
+    }
+  }
+
   return value as Record<string, unknown>;
 }

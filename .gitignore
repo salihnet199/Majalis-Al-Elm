@@ -45,6 +45,21 @@ Thumbs.db
 .claude/settings.local.json
 
 # Local environment files — NEVER commit these
+#
+# ⚠️  WARNING — READ BEFORE CREATING ANY NEW .env FILE ⚠️
+# The patterns below only cover `.env.local` and `.env.<name>.local`.
+# A plain `.env` is NOT ignored: create `apps/backend/.env` with a real database
+# password or JWT key and the next `git add -A` will commit it, permanently, into
+# history (git keeps deleted blobs — see POLICY-SEC-001).
+#
+# Rules:
+#   1. Real secrets go in `.env.local` (ignored) — never in `.env`.
+#   2. `.env` is for non-secret, build-time values only, and only where the
+#      values are public by nature. The one tracked `.env` in this repo,
+#      `apps/admin/.env`, holds a localhost API URL and an app title: Vite bakes
+#      every VITE_* var into the shipped browser bundle, so nothing secret can
+#      ever live there regardless of git.
+#   3. Placeholders belong in `.env.example` (tracked) — never real values.
 .env.local
 .env.*.local
 

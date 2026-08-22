@@ -146,7 +146,7 @@
    - دعم كامل للأدوار الخمسة (`SuperAdmin`, `Admin`, `Editor`, `Moderator`, `User`).
 
 ### التوصيات والمتطلبات قبل إطلاق Phase 3:
-- التأكد من تثبيت الحزم الأساسية المعتمدة في [ADR-010](file:///c:/Users/salih/Desktop/salihalfajaer/docs/architecture/adr/ADR-010-react-admin-state-zustand-tanstack-query.md) (`React 18/19`, `Ant Design 5`, `TailwindCSS`, `TanStack Query`, `Zustand`).
+- التأكد من تثبيت الحزم الأساسية المعتمدة في [ADR-010](../architecture/adr/ADR-010-react-admin-state-zustand-tanstack-query.md) (`React 18/19`, `Ant Design 5`, `TailwindCSS`, `TanStack Query`, `Zustand`).
 - تفعيل مسار الحاوية في `docker-compose` لتشغيل تطبيق الـ React Admin على المنفذ المخصص له بالتوازي مع الـ Backend و PostgreSQL.
 
 ---

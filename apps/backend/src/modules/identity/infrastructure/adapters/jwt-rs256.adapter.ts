@@ -2,6 +2,7 @@ import { Injectable, UnauthorizedException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
 import { readFileSync } from 'fs';
+import { TEST_ONLY_JWT_SECRET } from '../../../../shared/infrastructure/config/jwt-key-integrity';
 
 export interface JwtPayload {
   sub: string;        // user UUID
@@ -68,8 +69,11 @@ export class JwtRs256Adapter {
     }
 
     if (process.env.NODE_ENV === 'test') {
-      // Test environments use HS256 with a symmetric secret for simplicity
-      return 'test-secret-not-for-production';
+      // Tests sign with HS256 over a symmetric secret. Reachable ONLY here:
+      // outside NODE_ENV=test both the Joi rule in app.config.ts and
+      // assertJwtKeyIntegrity() in main.ts abort the boot before this line can
+      // run (POLICY-SEC-001, TECH-DEBT-013).
+      return TEST_ONLY_JWT_SECRET;
     }
 
     throw new Error(`JWT ${type} key is required. Set JWT_${type.toUpperCase()}_KEY_PATH or JWT_${type.toUpperCase()}_KEY.`);

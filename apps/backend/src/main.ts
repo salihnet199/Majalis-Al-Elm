@@ -11,10 +11,20 @@ import { NestFactory } from '@nestjs/core';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import helmet from 'helmet';
 import { AppModule } from './app/app.module';
+import { assertJwtKeyIntegrity } from './shared/infrastructure/config/jwt-key-integrity';
 import { GlobalExceptionFilter } from './shared/presentation/filters/global-exception.filter';
 import { TraceIdInterceptor } from './shared/presentation/interceptors/trace-id.interceptor';
 
 async function bootstrap() {
+  // ── Fail fast on weak JWT signing material (POLICY-SEC-001, TECH-DEBT-013) ──
+  // Second, independent layer behind the Joi rule in app.config.ts. It runs
+  // BEFORE NestFactory.create() on purpose: if the only available signing key is
+  // the test-only symmetric secret, the DI container must never get the chance
+  // to build JwtRs256Adapter around it. Outside NODE_ENV=test this throws and
+  // the process exits — a server that cannot sign trustworthy tokens must not
+  // serve traffic at all.
+  assertJwtKeyIntegrity();
+
   const app = await NestFactory.create(AppModule, {
     // Disable default NestJS logger in favour of pino (configured in AppModule)
     bufferLogs: true,

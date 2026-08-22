@@ -4,6 +4,7 @@ import { ExtractJwt, Strategy } from 'passport-jwt';
 import { ConfigService } from '@nestjs/config';
 import { readFileSync } from 'fs';
 import { JwtPayload } from '../adapters/jwt-rs256.adapter';
+import { TEST_ONLY_JWT_SECRET } from '../../../../shared/infrastructure/config/jwt-key-integrity';
 
 /**
  * JwtStrategy — Passport Strategy for JWT RS256 verification
@@ -53,8 +54,10 @@ export class JwtStrategy extends PassportStrategy(Strategy, 'jwt') {
     }
 
     if (isTest) {
-      // Test environments share the symmetric secret with JwtRs256Adapter
-      return 'test-secret-not-for-production';
+      // Shares the symmetric secret with JwtRs256Adapter. Reachable ONLY under
+      // NODE_ENV=test — outside it the boot aborts before Passport is
+      // constructed (POLICY-SEC-001, TECH-DEBT-013).
+      return TEST_ONLY_JWT_SECRET;
     }
 
     throw new Error(
