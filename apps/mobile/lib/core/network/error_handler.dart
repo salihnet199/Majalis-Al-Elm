@@ -1,3 +1,5 @@
+import 'package:dio/dio.dart';
+
 import 'api_response.dart';
 
 class AppException implements Exception {
@@ -17,6 +19,38 @@ class AppException implements Exception {
       code: error.code,
       traceId: error.traceId,
     );
+  }
+
+  /// Converts a raw [DioException] into a user-facing Arabic message.
+  ///
+  /// GOVERNANCE RULE — see docs/governance/TECHNICAL_DEBT.md (POLICY-SEC-001):
+  /// callers must surface this exception. Never substitute fabricated data, a
+  /// fabricated session, or a fabricated success state for a real failure.
+  factory AppException.fromDioException(
+    DioException error, {
+    String fallbackMessage = 'حدث خطأ في الاتصال بالخادم، يرجى المحاولة لاحقاً',
+  }) {
+    final data = error.response?.data;
+    if (data is Map<String, dynamic>) {
+      final errorData = data['error'] ?? data;
+      if (errorData is Map<String, dynamic> &&
+          (errorData.containsKey('code') || errorData.containsKey('message'))) {
+        return AppException.fromApiError(ApiError.fromJson(errorData));
+      }
+    }
+
+    switch (error.type) {
+      case DioExceptionType.connectionError:
+      case DioExceptionType.connectionTimeout:
+      case DioExceptionType.receiveTimeout:
+      case DioExceptionType.sendTimeout:
+        return const AppException(
+          code: 'NETWORK_ERROR',
+          message: 'تعذر الاتصال بالخادم، يرجى التحقق من اتصال الإنترنت',
+        );
+      default:
+        return AppException(code: 'NETWORK_ERROR', message: fallbackMessage);
+    }
   }
 
   static String _mapErrorCodeToMessage(String code, String fallbackMessage) {

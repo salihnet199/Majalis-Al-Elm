@@ -2,7 +2,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/network/api_client.dart';
 import '../../../core/network/error_handler.dart';
 import '../../../core/storage/secure_storage_service.dart';
-import '../data/models/user_model.dart';
 import '../data/repositories/auth_repository.dart';
 import 'auth_state.dart';
 

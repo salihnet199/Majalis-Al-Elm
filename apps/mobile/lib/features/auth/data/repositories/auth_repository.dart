@@ -265,7 +265,7 @@ class AuthRepository implements IAuthRepository {
         e.type == DioExceptionType.sendTimeout) {
       return const AppException(
         code: 'NETWORK_ERROR',
-        message: 'تعذر الاتصال بالخادم، يرجى التحقق من اتصال الإنترنت أو تجربة الدخول كزائر',
+        message: 'تعذر الاتصال بالخادم، يرجى التحقق من اتصال الإنترنت والمحاولة مرة أخرى',
       );
     }
     return AppException(

@@ -1,5 +1,7 @@
+import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../core/network/api_client.dart';
+import '../../../../core/network/error_handler.dart';
 import '../../../auth/providers/auth_notifier.dart';
 import '../../domain/models/notification_item_model.dart';
 import '../../domain/models/notification_preferences_model.dart';
@@ -40,7 +42,11 @@ class NotificationsNotifier extends StateNotifier<NotificationsState> {
     fetchNotifications();
   }
 
-  /// Fetches in-app notifications from backend
+  /// Fetches in-app notifications from backend.
+  ///
+  /// SECURITY / TRUTHFULNESS: no sample-data fallback. A failed request sets
+  /// [NotificationsState.errorMessage] so the inbox renders a clear Arabic error
+  /// instead of fabricated announcements that look like real platform content.
   Future<void> fetchNotifications() async {
     state = state.copyWith(isLoading: true, errorMessage: null);
     try {
@@ -54,41 +60,36 @@ class NotificationsNotifier extends StateNotifier<NotificationsState> {
 
       final unread = items.where((i) => !i.isRead).length;
       state = state.copyWith(items: items, isLoading: false, unreadCount: unread);
-    } catch (e) {
-      // Fallback sample notifications if offline
-      final fallbackItems = [
-        NotificationItemModel(
-          id: '1',
-          title: 'بدء التسجيل في دورة شرح العقيدة الطحاوية',
-          body: 'يسر إدارة منصة مجالس العلم الإعلان عن بدء التسجيل في دورة شرح العقيدة الطحاوية لفضيلة الشيخ علي الويسي.',
-          category: 'lesson',
-          channel: 'IN_APP',
-          isRead: false,
-          createdAt: DateTime.now().subtract(const Duration(minutes: 45)),
-        ),
-        NotificationItemModel(
-          id: '2',
-          title: 'جديد الفتاوى: حكم الجمع في السفر العارض',
-          body: 'تمت إضافة إجابة صوتية ومكتوبة لفضيلة الشيخ علي الويسي حول أحكام صلاة المسافر.',
-          category: 'fatwa',
-          channel: 'IN_APP',
-          isRead: true,
-          createdAt: DateTime.now().subtract(const Duration(days: 1)),
-        ),
-      ];
+    } on DioException catch (e) {
+      final failure = AppException.fromDioException(
+        e,
+        fallbackMessage: 'تعذر تحميل الإشعارات من الخادم، يرجى المحاولة مرة أخرى',
+      );
+      state = state.copyWith(isLoading: false, errorMessage: failure.message);
+    } catch (_) {
       state = state.copyWith(
-        items: fallbackItems,
         isLoading: false,
-        unreadCount: fallbackItems.where((i) => !i.isRead).length,
+        errorMessage: 'تعذر قراءة بيانات الإشعارات القادمة من الخادم',
       );
     }
   }
 
-  /// Marks a specific notification as read
-  Future<void> markAsRead(String id) async {
+  /// Marks a specific notification as read.
+  ///
+  /// Returns `true` only when the backend confirmed the change. The local read
+  /// flag is never flipped on a failed request — that would show the user a
+  /// read state the server does not have.
+  Future<bool> markAsRead(String id) async {
     try {
       await _apiClient.patch('/notifications/$id/read', data: {});
-    } catch (_) {}
+    } on DioException catch (e) {
+      final failure = AppException.fromDioException(
+        e,
+        fallbackMessage: 'تعذر تحديد الإشعار كمقروء، يرجى المحاولة مرة أخرى',
+      );
+      state = state.copyWith(errorMessage: failure.message);
+      return false;
+    }
 
     final updated = state.items.map((item) {
       if (item.id == id) {
@@ -99,16 +100,25 @@ class NotificationsNotifier extends StateNotifier<NotificationsState> {
 
     final unread = updated.where((i) => !i.isRead).length;
     state = state.copyWith(items: updated, unreadCount: unread);
+    return true;
   }
 
-  /// Marks all notifications as read
-  Future<void> markAllAsRead() async {
+  /// Marks all notifications as read. Returns `true` only on backend confirmation.
+  Future<bool> markAllAsRead() async {
     try {
       await _apiClient.patch('/notifications/read-all', data: {});
-    } catch (_) {}
+    } on DioException catch (e) {
+      final failure = AppException.fromDioException(
+        e,
+        fallbackMessage: 'تعذر تحديد الإشعارات كمقروءة، يرجى المحاولة مرة أخرى',
+      );
+      state = state.copyWith(errorMessage: failure.message);
+      return false;
+    }
 
     final updated = state.items.map((item) => item.copyWith(isRead: true)).toList();
     state = state.copyWith(items: updated, unreadCount: 0);
+    return true;
   }
 }
 
@@ -131,22 +141,51 @@ class NotificationPreferencesNotifier extends StateNotifier<AsyncValue<Notificat
     fetchPreferences();
   }
 
+  /// Loads the user's notification preferences.
+  ///
+  /// SECURITY / TRUTHFULNESS: a failed request becomes [AsyncValue.error] so the
+  /// settings screen shows an Arabic error. Returning default preferences here
+  /// made the user believe they were seeing (and editing) their saved settings.
   Future<void> fetchPreferences() async {
+    state = const AsyncValue.loading();
     try {
       final response = await _apiClient.get('/notifications/preferences');
       final data = response.data;
       final payload = data is Map && data['data'] != null ? data['data'] : data;
       state = AsyncValue.data(NotificationPreferencesModel.fromJson(Map<String, dynamic>.from(payload as Map)));
-    } catch (e) {
-      state = const AsyncValue.data(NotificationPreferencesModel());
+    } on DioException catch (e, stackTrace) {
+      state = AsyncValue.error(
+        AppException.fromDioException(
+          e,
+          fallbackMessage: 'تعذر تحميل تفضيلات الإشعارات من الخادم',
+        ),
+        stackTrace,
+      );
+    } catch (_, stackTrace) {
+      state = AsyncValue.error(
+        const AppException(
+          code: 'PARSE_ERROR',
+          message: 'تعذر قراءة تفضيلات الإشعارات القادمة من الخادم',
+        ),
+        stackTrace,
+      );
     }
   }
 
-  Future<void> updatePreferences(NotificationPreferencesModel updated) async {
+  /// Applies a preference change optimistically, then reverts it if the backend
+  /// rejected or never received the update. Returns `true` only on confirmation.
+  Future<bool> updatePreferences(NotificationPreferencesModel updated) async {
+    final previous = state.valueOrNull;
     state = AsyncValue.data(updated);
     try {
       await _apiClient.patch('/notifications/preferences', data: updated.toJson());
-    } catch (_) {}
+      return true;
+    } on DioException catch (_) {
+      if (previous != null) {
+        state = AsyncValue.data(previous);
+      }
+      return false;
+    }
   }
 }
 

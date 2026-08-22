@@ -12,6 +12,8 @@ import {
   Tooltip,
   Modal,
   Form,
+  Alert,
+  Empty,
 } from 'antd';
 import {
   SearchOutlined,
@@ -23,6 +25,7 @@ import {
 } from '@ant-design/icons';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiClient } from '../../core/api/client';
+import { toArabicErrorMessage } from '../../core/api/errorMessage';
 import { queryKeys } from '../../core/queries/queryKeys';
 import { UserProfile, Role } from '../../core/types/auth.types';
 import { useAuthStore } from '../../core/stores/auth.store';
@@ -45,65 +48,29 @@ export const UserListScreen: React.FC = () => {
   const [addUserForm] = Form.useForm();
 
   // 1. TanStack Query: User list
-  const { data, isLoading, refetch } = useQuery({
+  //
+  // SECURITY: no offline/sample fallback here. A failed request must surface as a
+  // visible Arabic error — fabricating rows (previously including a SuperAdmin row)
+  // makes a backend outage indistinguishable from real platform data.
+  const { data, isLoading, isError, error, refetch } = useQuery({
     queryKey: queryKeys.users.list({ search, role: roleFilter, status: statusFilter, page: currentPage, limit: pageSize }),
     queryFn: async () => {
-      try {
-        const params = new URLSearchParams();
-        if (search) params.append('search', search);
-        if (roleFilter !== 'ALL') params.append('role', roleFilter);
-        if (statusFilter === 'SUSPENDED') params.append('isSuspended', 'true');
-        if (statusFilter === 'ACTIVE') params.append('isSuspended', 'false');
-        params.append('page', currentPage.toString());
-        params.append('limit', pageSize.toString());
+      const params = new URLSearchParams();
+      if (search) params.append('search', search);
+      if (roleFilter !== 'ALL') params.append('role', roleFilter);
+      if (statusFilter === 'SUSPENDED') params.append('isSuspended', 'true');
+      if (statusFilter === 'ACTIVE') params.append('isSuspended', 'false');
+      params.append('page', currentPage.toString());
+      params.append('limit', pageSize.toString());
 
-        const res = await apiClient.get(`/admin/users?${params.toString()}`);
-        return {
-          items: (res.data?.data || res.data || []) as UserProfile[],
-          total: res.data?.meta?.total || 0,
-        };
-      } catch {
-        // Fallback sample data if offline
-        return {
-          items: [
-            {
-              id: '01916362-7000-7000-8000-000000000001',
-              fullName: 'فضيلة الشيخ علي الويسي',
-              email: 'sheikh.ali@majalis-elm.app',
-              role: 'SuperAdmin' as Role,
-              isSuspended: false,
-              createdAt: '2026-01-01T00:00:00Z',
-            },
-            {
-              id: '01916362-7000-7000-8000-000000000002',
-              fullName: 'أحمد بن محمد (مشرف المحتوى)',
-              email: 'ahmed.admin@majalis-elm.app',
-              role: 'Admin' as Role,
-              isSuspended: false,
-              createdAt: '2026-02-01T00:00:00Z',
-            },
-            {
-              id: '01916362-7000-7000-8000-000000000003',
-              fullName: 'عمر خالد (محرر الفتاوى)',
-              email: 'omar.editor@majalis-elm.app',
-              role: 'Editor' as Role,
-              isSuspended: false,
-              createdAt: '2026-02-10T00:00:00Z',
-            },
-            {
-              id: '01916362-7000-7000-8000-000000000004',
-              fullName: 'سعيد عبد الله (طالب علم)',
-              email: 'saeed.student@gmail.com',
-              role: 'User' as Role,
-              isSuspended: false,
-              createdAt: '2026-02-15T00:00:00Z',
-            },
-          ] as UserProfile[],
-          total: 4,
-        };
-      }
+      const res = await apiClient.get(`/admin/users?${params.toString()}`);
+      return {
+        items: (res.data?.data || res.data || []) as UserProfile[],
+        total: res.data?.meta?.total || 0,
+      };
     },
     staleTime: 30000,
+    retry: 1,
   });
 
   // 2. Suspend / Unsuspend Mutation
@@ -119,9 +86,10 @@ export const UserListScreen: React.FC = () => {
       message.success(vars.isSuspended ? 'تم رفع الإيقاف عن الحساب بنجاح' : 'تم تجميد الحساب بنجاح');
       queryClient.invalidateQueries({ queryKey: queryKeys.users.all });
     },
-    onError: () => {
-      message.success('تم تحديث حالة الحساب بنجاح.');
-      queryClient.invalidateQueries({ queryKey: queryKeys.users.all });
+    // SECURITY: report the real failure. A success toast on error made admins
+    // believe a suspension took effect when the account was still active.
+    onError: (err) => {
+      message.error(toArabicErrorMessage(err, 'تعذر تحديث حالة الحساب، لم يتم تنفيذ أي تغيير'));
     },
   });
 
@@ -136,11 +104,10 @@ export const UserListScreen: React.FC = () => {
       addUserForm.resetFields();
       queryClient.invalidateQueries({ queryKey: queryKeys.users.all });
     },
-    onError: () => {
-      message.success('تمت إضافة المستخدم بنجاح.');
-      setIsAddUserModalOpen(false);
-      addUserForm.resetFields();
-      queryClient.invalidateQueries({ queryKey: queryKeys.users.all });
+    // SECURITY: keep the modal open with the entered values and show the real
+    // error. Claiming success here created phantom accounts in the admin's mind.
+    onError: (err) => {
+      message.error(toArabicErrorMessage(err, 'تعذر إنشاء الحساب، لم يُضَف أي مستخدم'));
     },
   });
 
@@ -301,6 +268,30 @@ export const UserListScreen: React.FC = () => {
         </div>
       </div>
 
+      {/* Load Failure Banner — replaces the deleted sample-data fallback */}
+      {isError && (
+        <Alert
+          type="error"
+          showIcon
+          className="rounded-2xl font-cairo"
+          message={
+            <span className="font-bold">تعذر تحميل قائمة المستخدمين من الخادم</span>
+          }
+          description={
+            <span className="text-xs">
+              {toArabicErrorMessage(error, 'تعذر جلب قائمة المستخدمين، يرجى المحاولة مرة أخرى')}
+              {' — '}
+              لا يتم عرض أي بيانات تجريبية حتى لا تُلتبس ببيانات المنصة الحقيقية.
+            </span>
+          }
+          action={
+            <Button size="small" danger onClick={() => refetch()} className="font-cairo">
+              إعادة المحاولة
+            </Button>
+          }
+        />
+      )}
+
       {/* Filter Toolbar */}
       <Card className="border border-gold-500/25 bg-mocha-900/90 rounded-2xl shadow-lg p-1">
         <div className="flex flex-wrap items-center justify-between gap-4">
@@ -338,7 +329,10 @@ export const UserListScreen: React.FC = () => {
           </div>
 
           <div className="text-xs text-cream-300 font-cairo">
-            إجمالي الحسابات: <strong className="text-gold-400">{data?.total || data?.items?.length || 0}</strong>
+            إجمالي الحسابات:{' '}
+            <strong className="text-gold-400">
+              {isError ? '—' : data?.total || data?.items?.length || 0}
+            </strong>
           </div>
         </div>
       </Card>
@@ -350,6 +344,20 @@ export const UserListScreen: React.FC = () => {
           dataSource={data?.items || []}
           rowKey="id"
           loading={isLoading}
+          locale={{
+            emptyText: (
+              <Empty
+                image={Empty.PRESENTED_IMAGE_SIMPLE}
+                description={
+                  <span className="font-cairo text-cream-300 text-sm">
+                    {isError
+                      ? 'لا يمكن عرض المستخدمين لتعذر الاتصال بالخادم'
+                      : 'لا يوجد مستخدمون مطابقون لمعايير البحث'}
+                  </span>
+                }
+              />
+            ),
+          }}
           pagination={{
             current: currentPage,
             pageSize,

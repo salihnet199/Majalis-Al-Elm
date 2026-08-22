@@ -23,10 +23,18 @@ class NotificationService {
 
   final FlutterLocalNotificationsPlugin _localNotifications = FlutterLocalNotificationsPlugin();
   bool _isInitialized = false;
+  bool _isDeviceRegistered = false;
+  String? _initializationError;
   String? _fcmToken;
 
   String? get fcmToken => _fcmToken;
   bool get isInitialized => _isInitialized;
+
+  /// `true` only after the backend confirmed this device's FCM token.
+  bool get isDeviceRegistered => _isDeviceRegistered;
+
+  /// Arabic description of the last initialization failure, or `null` on success.
+  String? get initializationError => _initializationError;
 
   /// High importance notification channel for Android
   static const AndroidNotificationChannel _channel = AndroidNotificationChannel(
@@ -38,10 +46,16 @@ class NotificationService {
     enableVibration: true,
   );
 
-  /// Initializes Firebase Cloud Messaging and Local Notifications
+  /// Initializes Firebase Cloud Messaging and Local Notifications.
+  ///
+  /// SECURITY / TRUTHFULNESS: on failure [isInitialized] stays `false` and
+  /// [initializationError] carries an Arabic description. The previous code set
+  /// `_isInitialized = true` inside the catch block ("Mock Fallback"), so the app
+  /// reported a working notification pipeline while no channel, no permission and
+  /// no FCM token existed — and a retry was impossible because of the early guard.
   Future<void> initialize({Dio? apiClient}) async {
     if (_isInitialized) return;
-
+    _initializationError = null;
     try {
       // 1. Safe Firebase Core Initialization
       await Firebase.initializeApp();
@@ -133,13 +147,18 @@ class NotificationService {
 
       _isInitialized = true;
     } catch (e) {
-      debugPrint('[FCM Service Warning] Running in Smart Hybrid Mode (Mock Fallback): $e');
-      _isInitialized = true; // Fallback initialization
+      _isInitialized = false;
+      _initializationError =
+          'تعذر تهيئة خدمة الإشعارات على هذا الجهاز، لن تصلك التنبيهات الفورية حتى إعادة المحاولة';
+      debugPrint('[FCM Service Error] Initialization failed — notifications are OFF: $e');
     }
   }
 
-  /// Registers or updates device token on NestJS backend
-  Future<void> registerDeviceWithBackend(Dio apiClient, String token) async {
+  /// Registers or updates device token on NestJS backend.
+  ///
+  /// Returns `true` only when the backend accepted the token; [isDeviceRegistered]
+  /// reflects the real state instead of silently swallowing the failure.
+  Future<bool> registerDeviceWithBackend(Dio apiClient, String token) async {
     try {
       final deviceType = Platform.isIOS ? 'IOS' : Platform.isAndroid ? 'ANDROID' : 'WEB';
       await apiClient.post('/notifications/devices', data: {
@@ -147,9 +166,13 @@ class NotificationService {
         'deviceType': deviceType,
         'osVersion': Platform.operatingSystemVersion,
       });
+      _isDeviceRegistered = true;
       debugPrint('[FCM Sync] Device successfully registered on backend');
+      return true;
     } catch (e) {
+      _isDeviceRegistered = false;
       debugPrint('[FCM Sync Error] Could not register device on backend: $e');
+      return false;
     }
   }
 }

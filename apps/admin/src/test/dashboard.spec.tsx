@@ -23,22 +23,14 @@ vi.mock('../core/api/client', () => ({
         return Promise.resolve({
           data: {
             data: {
-              dau: 450,
-              wau: 1800,
-              mau: 6500,
-              newUsersToday: 42,
               totalContent: 128,
+              totalUsers: 6500,
+              totalViews: 48920,
+              activeDrafts: 7,
               topContent: [
                 { id: '1', title: 'الأصول الثلاثة — الدرس الأول', type: 'AUDIO', viewCount: 1540 },
                 { id: '2', title: 'كتاب التوحيد للإمام المجدد', type: 'PDF', viewCount: 980 },
               ],
-              authMethodBreakdown: {
-                email: 100,
-                phone: 0,
-                google: 0,
-                apple: 0,
-                facebook: 0,
-              },
             },
           },
         });
@@ -63,17 +55,33 @@ describe('DashboardScreen Component Tests', () => {
   it('renders dashboard title and metric cards correctly', async () => {
     render(<DashboardScreen />, { wrapper: createWrapper() });
 
-    expect(await screen.findByText('لوحة المؤشرات والتحليلات العامة')).toBeInTheDocument();
-    expect(await screen.findByText('المستخدمين النشطين يومياً (DAU)')).toBeInTheDocument();
-    expect(await screen.findByText('النشطين أسبوعياً (WAU)')).toBeInTheDocument();
-    expect(await screen.findByText('إجمالي المحتوى المنشور')).toBeInTheDocument();
+    expect(
+      await screen.findByText('لوحة المؤشرات والتحليلات العامة — مجالس العلم'),
+    ).toBeInTheDocument();
+    expect(await screen.findByText('إجمالي المواد المنشورة')).toBeInTheDocument();
+    expect(await screen.findByText('المستمعون والزوار')).toBeInTheDocument();
+    expect(await screen.findByText('المستخدمون المسجلون')).toBeInTheDocument();
+    expect(await screen.findByText('المسودات قيد المراجعة')).toBeInTheDocument();
   });
 
-  it('renders infrastructure health indicators', async () => {
+  it('renders the top-content table with the values returned by the API', async () => {
     render(<DashboardScreen />, { wrapper: createWrapper() });
 
-    expect(await screen.findByText('حالة النظام والبنية التحتية')).toBeInTheDocument();
-    expect(await screen.findByText('PostgreSQL 16 (UUIDv7)')).toBeInTheDocument();
-    expect(await screen.findByText('Redis 7 (Sessions & Cache)')).toBeInTheDocument();
+    expect(await screen.findByText('المواد الأكثر قراءة واستماعاً')).toBeInTheDocument();
+    expect(await screen.findByText('الأصول الثلاثة — الدرس الأول')).toBeInTheDocument();
+    expect(await screen.findByText('كتاب التوحيد للإمام المجدد')).toBeInTheDocument();
+
+    // Values come from the mocked response, not from the component's hardcoded defaults
+    expect(await screen.findByText('128')).toBeInTheDocument();
+    expect(await screen.findByText('7')).toBeInTheDocument();
+  });
+
+  it('renders the sheikh profile card', async () => {
+    render(<DashboardScreen />, { wrapper: createWrapper() });
+
+    expect(await screen.findByText('عن صاحب المجلس')).toBeInTheDocument();
+    expect(
+      await screen.findByText('فضيلة الشيخ علي الويسي حفظه الله'),
+    ).toBeInTheDocument();
   });
 });
