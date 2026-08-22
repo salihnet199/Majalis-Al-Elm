@@ -54,13 +54,13 @@ export const AnnouncementsScreen: React.FC = () => {
             {
               id: '1',
               title: 'بدء التسجيل في دورة شرح العقيدة الطحاوية',
-              body: 'يسر إدارة منصة مجالس العالم الإعلان عن بدء التسجيل في دورة شرح العقيدة الطحاوية لفضيلة الشيخ علي الويسي.',
+              body: 'يسر إدارة منصة مجالس العلم الإعلان عن بدء التسجيل في دورة شرح العقيدة الطحاوية لفضيلة الشيخ علي الويسي.',
               target: 'ALL',
               createdAt: new Date().toISOString(),
             },
             {
               id: '2',
-              title: 'تحديث تطبيق مجالس العالم للإصدار الجديد',
+              title: 'تحديث تطبيق مجالس العلم للإصدار الجديد',
               body: 'نرجو من جميع المتابعين تحديث التطبيق للاستفادة من تحسينات جودة البث الصوتي وتصفح الفتاوى.',
               target: 'USERS',
               createdAt: new Date(Date.now() - 86400000).toISOString(),
@@ -245,7 +245,7 @@ export const AnnouncementsScreen: React.FC = () => {
             مركز الإعلانات والإشعارات الفورية
           </Title>
           <Text className="text-cream-300 text-sm font-cairo">
-            بث التنبيهات العامة وإشعارات الدروس والمواعيد لمستخدمي تطبيق مجالس العالم
+            بث التنبيهات العامة وإشعارات الدروس والمواعيد لمستخدمي تطبيق مجالس العلم
           </Text>
         </div>
         <Button
@@ -305,7 +305,7 @@ export const AnnouncementsScreen: React.FC = () => {
             >
               <TextArea
                 rows={4}
-                placeholder="يسر إدارة منصة مجالس العالم الإعلان عن..."
+                placeholder="يسر إدارة منصة مجالس العلم الإعلان عن..."
                 className="rounded-xl bg-mocha-950 border-gold-500/30 text-cream-100 font-amiri text-base leading-relaxed"
               />
             </Form.Item>

@@ -22,7 +22,7 @@ class IsarService {
         UserPreferenceCollectionSchema,
       ],
       directory: dir.path,
-      name: 'majlis_alim_local_db',
+      name: 'majalis_elm_local_db',
     );
     return _instance!;
   }

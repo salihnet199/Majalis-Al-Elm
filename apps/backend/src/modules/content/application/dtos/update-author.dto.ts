@@ -7,7 +7,7 @@ import { ApiProperty } from '@nestjs/swagger';
 import { AuthorTranslationDto } from './translation.dto';
 
 export class UpdateAuthorDto {
-  @ApiProperty({ required: false, example: 'https://cdn.majlis-alim.app/avatars/sheikh.jpg' })
+  @ApiProperty({ required: false, example: 'https://cdn.majalis-elm.app/avatars/sheikh.jpg' })
   @IsUrl()
   @IsOptional()
   avatarUrl?: string | null;

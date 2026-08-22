@@ -179,7 +179,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       body: ListView(
         padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
         children: [
-          // Greeting Banner (Clean - "مرحباً بك في مجالس العالم")
+          // Greeting Banner (Clean - "مرحباً بك في مجالس العلم")
           Container(
             padding: const EdgeInsets.all(18),
             decoration: BoxDecoration(
@@ -201,7 +201,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  'مرحباً بك في مجالس العالم',
+                  'مرحباً بك في مجالس العلم',
                   style: AppTypography.heroHeader.copyWith(
                     color: Colors.white,
                     fontSize: 20,

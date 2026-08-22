@@ -1,4 +1,4 @@
-# Majlis Al-Alim Platform — Local Development Docker Compose
+# Majalis Al-Elm Platform — Local Development Docker Compose
 #
 # Services:
 #   postgres  — PostgreSQL 16 with pg_uuidv7 + citext + pgcrypto (custom image)
@@ -30,12 +30,12 @@ services:
     build:
       context: ./infra/docker/postgres
       dockerfile: Dockerfile
-    image: majlis-alim/postgres:dev
-    container_name: majlis-alim-postgres
+    image: majalis-elm/postgres:dev
+    container_name: majalis-elm-postgres
     restart: unless-stopped
     environment:
-      POSTGRES_DB: ${DATABASE_NAME:-majlisalim}
-      POSTGRES_USER: ${DATABASE_USER:-majlisalim}
+      POSTGRES_DB: ${DATABASE_NAME:-majaliselm}
+      POSTGRES_USER: ${DATABASE_USER:-majaliselm}
       POSTGRES_PASSWORD: ${DATABASE_PASSWORD:?DATABASE_PASSWORD is required in .env.local}
     ports:
       - '${DATABASE_PORT:-5432}:5432'
@@ -44,7 +44,7 @@ services:
       # Mount migrations for psql execution
       - ./apps/backend/migrations:/docker-entrypoint-initdb.d/migrations:ro
     healthcheck:
-      test: ['CMD-SHELL', 'pg_isready -U ${DATABASE_USER:-majlisalim} -d ${DATABASE_NAME:-majlisalim}']
+      test: ['CMD-SHELL', 'pg_isready -U ${DATABASE_USER:-majaliselm} -d ${DATABASE_NAME:-majaliselm}']
       interval: 10s
       timeout: 5s
       retries: 5
@@ -58,8 +58,8 @@ services:
       context: .
       dockerfile: apps/backend/Dockerfile
       target: development
-    image: majlis-alim/backend:dev
-    container_name: majlis-alim-backend
+    image: majalis-elm/backend:dev
+    container_name: majalis-elm-backend
     restart: unless-stopped
     depends_on:
       postgres:
@@ -69,8 +69,8 @@ services:
       PORT: 3000
       DATABASE_HOST: postgres
       DATABASE_PORT: 5432
-      DATABASE_NAME: ${DATABASE_NAME:-majlisalim}
-      DATABASE_USER: ${DATABASE_USER:-majlisalim}
+      DATABASE_NAME: ${DATABASE_NAME:-majaliselm}
+      DATABASE_USER: ${DATABASE_USER:-majaliselm}
       DATABASE_PASSWORD: ${DATABASE_PASSWORD}
       DATABASE_SSL: 'false'
       JWT_PRIVATE_KEY_PATH: /run/secrets/jwt_private_key
@@ -99,7 +99,7 @@ services:
   # ── Nginx Reverse Proxy ────────────────────────────────────────────────────
   nginx:
     image: nginx:1.27-alpine
-    container_name: majlis-alim-nginx
+    container_name: majalis-elm-nginx
     restart: unless-stopped
     depends_on:
       backend:
@@ -112,4 +112,4 @@ services:
 
 volumes:
   postgres_data:
-    name: majlis-alim-postgres-data
+    name: majalis-elm-postgres-data

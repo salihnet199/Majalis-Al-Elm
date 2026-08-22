@@ -184,27 +184,6 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                   ),
                   const SizedBox(height: 12),
 
-                  // Guest / Direct Explore Button
-                  OutlinedButton.icon(
-                    onPressed: isLoading
-                        ? null
-                        : () {
-                            ref.read(authNotifierProvider.notifier).loginAsGuest();
-                            context.go('/home');
-                          },
-                    icon: const Icon(Icons.explore_outlined, size: 20),
-                    label: const Text('تصفح كزائر (تخطي التسجيل)'),
-                    style: OutlinedButton.styleFrom(
-                      foregroundColor: AppColors.primary,
-                      side: const BorderSide(color: AppColors.primary, width: 1.5),
-                      padding: const EdgeInsets.symmetric(vertical: 14),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 20),
-
                   // OAuth & Phone OTP Section
                   Row(
                     children: [
@@ -289,7 +268,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     final success = await ref.read(authNotifierProvider.notifier).loginWithGoogle(
       idToken: 'google_oauth_token_${DateTime.now().millisecondsSinceEpoch}',
       fullName: 'طالب علم (Google)',
-      email: 'student.google@majlis-alim.com',
+      email: 'student.google@majalis-elm.com',
     );
     if (success && mounted) {
       context.go('/home');
@@ -300,7 +279,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     final success = await ref.read(authNotifierProvider.notifier).loginWithApple(
       idToken: 'apple_oauth_token_${DateTime.now().millisecondsSinceEpoch}',
       fullName: 'طالب علم (Apple)',
-      email: 'student.apple@majlis-alim.com',
+      email: 'student.apple@majalis-elm.com',
     );
     if (success && mounted) {
       context.go('/home');

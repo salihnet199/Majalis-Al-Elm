@@ -1,5 +1,5 @@
 /**
- * Visual Identity Design Tokens for 'مجالس العالم'
+ * Visual Identity Design Tokens for 'مجالس العلم'
  * Warm Mocha Brown & Antique Gold Heritage Palette
  * Shared across React Admin and exportable to Flutter.
  */

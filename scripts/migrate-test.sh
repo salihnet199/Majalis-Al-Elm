@@ -5,14 +5,14 @@
 # ─────────────────────────────────────────────────────────────────────────────
 set -euo pipefail
 
-CONTAINER="majlis-alim-migrate-test"
-IMAGE="majlis-alim/postgres:dev"
-DB="majlisalim"
-USER="majlisalim"
+CONTAINER="majalis-elm-migrate-test"
+IMAGE="majalis-elm/postgres:dev"
+DB="majaliselm"
+USER="majaliselm"
 PASSWORD="testpassword123"
 MIGRATIONS_DIR="$(cd "$(dirname "$0")/../apps/backend/migrations" && pwd)"
 
-echo "=== Majlis Al-Alim Migration Test ==="
+echo "=== Majalis Al-Elm Migration Test ==="
 echo "Migrations dir: $MIGRATIONS_DIR"
 echo ""
 

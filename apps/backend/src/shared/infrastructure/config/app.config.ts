@@ -13,15 +13,15 @@ import Joi from 'joi';
 export const appConfig = registerAs('app', () => ({
   nodeEnv: process.env.NODE_ENV ?? 'development',
   port: parseInt(process.env.PORT ?? '3000', 10),
-  name: process.env.APP_NAME ?? 'majlis-alim-backend',
+  name: process.env.APP_NAME ?? 'majalis-elm-backend',
   corsOrigin: process.env.CORS_ORIGIN ?? '',
 }));
 
 export const databaseConfig = registerAs('database', () => ({
   host: process.env.DATABASE_HOST ?? 'localhost',
   port: parseInt(process.env.DATABASE_PORT ?? '5432', 10),
-  name: process.env.DATABASE_NAME ?? 'majlisalim',
-  user: process.env.DATABASE_USER ?? 'majlisalim',
+  name: process.env.DATABASE_NAME ?? 'majaliselm',
+  user: process.env.DATABASE_USER ?? 'majaliselm',
   password: process.env.DATABASE_PASSWORD ?? '',
   ssl: process.env.DATABASE_SSL === 'true',
 }));

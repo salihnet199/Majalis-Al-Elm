@@ -12,19 +12,19 @@ void main() async {
 
   runApp(
     const ProviderScope(
-      child: MajlisAlAlimApp(),
+      child: MajalisAlElmApp(),
     ),
   );
 }
 
-class MajlisAlAlimApp extends ConsumerStatefulWidget {
-  const MajlisAlAlimApp({super.key});
+class MajalisAlElmApp extends ConsumerStatefulWidget {
+  const MajalisAlElmApp({super.key});
 
   @override
-  ConsumerState<MajlisAlAlimApp> createState() => _MajlisAlAlimAppState();
+  ConsumerState<MajalisAlElmApp> createState() => _MajalisAlElmAppState();
 }
 
-class _MajlisAlAlimAppState extends ConsumerState<MajlisAlAlimApp> {
+class _MajalisAlElmAppState extends ConsumerState<MajalisAlElmApp> {
   @override
   void initState() {
     super.initState();
@@ -43,7 +43,7 @@ class _MajlisAlAlimAppState extends ConsumerState<MajlisAlAlimApp> {
     final router = ref.watch(appRouterProvider);
 
     return MaterialApp.router(
-      title: 'مجالس العالم',
+      title: 'مجالس العلم',
       debugShowCheckedModeBanner: false,
       theme: AppTheme.lightTheme,
       darkTheme: AppTheme.darkTheme,

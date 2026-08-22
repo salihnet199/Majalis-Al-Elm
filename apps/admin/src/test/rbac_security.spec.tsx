@@ -35,7 +35,7 @@ describe('RBAC Security & Role Assignment Restrictions', () => {
       {
         id: 'super-1',
         fullName: 'المدير الأعلى',
-        email: 'super@majlis-alim.app',
+        email: 'super@majalis-elm.app',
         role: 'SuperAdmin',
       },
       'token_super',
@@ -58,7 +58,7 @@ describe('RBAC Security & Role Assignment Restrictions', () => {
       {
         id: 'admin-1',
         fullName: 'مسؤول عادي',
-        email: 'admin@majlis-alim.app',
+        email: 'admin@majalis-elm.app',
         role: 'Admin',
       },
       'token_admin',
@@ -82,7 +82,7 @@ describe('RBAC Security & Role Assignment Restrictions', () => {
       {
         id: 'editor-1',
         fullName: 'محرر محتوى',
-        email: 'editor@majlis-alim.app',
+        email: 'editor@majalis-elm.app',
         role: 'Editor',
       },
       'token_editor',

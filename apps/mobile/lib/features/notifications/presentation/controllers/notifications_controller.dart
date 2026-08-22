@@ -60,7 +60,7 @@ class NotificationsNotifier extends StateNotifier<NotificationsState> {
         NotificationItemModel(
           id: '1',
           title: 'بدء التسجيل في دورة شرح العقيدة الطحاوية',
-          body: 'يسر إدارة منصة مجالس العالم الإعلان عن بدء التسجيل في دورة شرح العقيدة الطحاوية لفضيلة الشيخ علي الويسي.',
+          body: 'يسر إدارة منصة مجالس العلم الإعلان عن بدء التسجيل في دورة شرح العقيدة الطحاوية لفضيلة الشيخ علي الويسي.',
           category: 'lesson',
           channel: 'IN_APP',
           isRead: false,

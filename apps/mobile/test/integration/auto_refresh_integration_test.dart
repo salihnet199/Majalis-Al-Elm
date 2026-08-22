@@ -16,7 +16,7 @@ void main() {
   late AuthRepository authRepository;
 
   final runId = '${DateTime.now().millisecondsSinceEpoch}_${Random().nextInt(99999)}';
-  final testEmail = 'autorefresh_$runId@test.majlisalim.local';
+  final testEmail = 'autorefresh_$runId@test.majaliselm.local';
   const testPassword = 'AutoRefreshPass123!';
   const testFullName = 'مستخدم اختبار التجديد التلقائي';
 

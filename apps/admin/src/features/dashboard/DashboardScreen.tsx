@@ -43,7 +43,7 @@ export const DashboardScreen: React.FC = () => {
     'sheikh.bio',
     'فضيلة الشيخ علي الويسي — عالم وداعية إسلامي، يُعنى بنشر العلوم الشرعية، تدريس كتب الفقه والعقيدة، والإجابة عن الفتاوى والاستشارات الشرعية لطلاب العلم وعموم المسلمين.',
   );
-  const welcomeTitle = getText('dashboard.welcome_title', 'لوحة المؤشرات والتحليلات العامة — مجالس العالم');
+  const welcomeTitle = getText('dashboard.welcome_title', 'لوحة المؤشرات والتحليلات العامة — مجالس العلم');
   const welcomeDesc = getText(
     'dashboard.welcome_desc',
     'متابعة إحصائيات الدروس، الفتاوى، المستمعين، وحالة البنية التحتية للمنصة',

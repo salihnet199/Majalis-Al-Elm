@@ -19,7 +19,7 @@ export const LoginScreen: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
 
-  const brandTitle = getText('header.brand_title', 'مجالس العالم');
+  const brandTitle = getText('header.brand_title', 'مجالس العلم');
   const loginSubtitle = getText('login.subtitle', 'فضيلة الشيخ علي الويسي — بوابة الإدارة');
   const basmala = getText('header.basmala', 'بِسْمِ اللَّهِ الرَّحْمَٰنِ الرَّحِيمِ');
 
@@ -63,7 +63,7 @@ export const LoginScreen: React.FC = () => {
         setAuth(
           {
             id: '01916362-7000-7000-8000-000000000001',
-            email: values.email.trim() || 'sheikh.ali@majlis-alim.app',
+            email: values.email.trim() || 'sheikh.ali@majalis-elm.app',
             fullName: 'فضيلة الشيخ علي الويسي',
             role: 'SuperAdmin',
             isSuspended: false,
@@ -156,7 +156,7 @@ export const LoginScreen: React.FC = () => {
           >
             <Input
               prefix={<MailOutlined className="text-gold-500/70 ml-2" />}
-              placeholder="admin@majlis-alim.app"
+              placeholder="admin@majalis-elm.app"
               dir="ltr"
               className="rounded-lg bg-mocha-900/90 border-gold-500/30 text-cream-100 placeholder:text-mocha-400 hover:border-gold-400 focus:border-gold-500 focus:ring-1 focus:ring-gold-500/50"
             />

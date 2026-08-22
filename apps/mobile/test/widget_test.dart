@@ -9,13 +9,13 @@ import 'package:mobile/features/auth/providers/auth_state.dart';
 import 'package:mobile/features/auth/data/models/user_model.dart';
 
 void main() {
-  testWidgets('MajlisAlAlimApp renders login when unauthenticated and enforces RTL Directionality', (WidgetTester tester) async {
+  testWidgets('MajalisAlElmApp renders login when unauthenticated and enforces RTL Directionality', (WidgetTester tester) async {
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
           authNotifierProvider.overrideWith((ref) => MockAuthNotifier(const Unauthenticated())),
         ],
-        child: const MajlisAlAlimApp(),
+        child: const MajalisAlElmApp(),
       ),
     );
 
@@ -30,7 +30,7 @@ void main() {
     expect(directionality.textDirection, TextDirection.rtl);
   });
 
-  testWidgets('MajlisAlAlimApp transitions to home when authenticated', (WidgetTester tester) async {
+  testWidgets('MajalisAlElmApp transitions to home when authenticated', (WidgetTester tester) async {
     const testUser = UserModel(
       id: '01920abc-1234-7890-abcd-000000000001',
       fullName: 'أحمد محمد',
@@ -43,7 +43,7 @@ void main() {
         overrides: [
           authNotifierProvider.overrideWith((ref) => MockAuthNotifier(const Authenticated(testUser))),
         ],
-        child: const MajlisAlAlimApp(),
+        child: const MajalisAlElmApp(),
       ),
     );
 
@@ -77,17 +77,6 @@ class MockAuthNotifier extends StateNotifier<AuthState> implements AuthNotifier 
   @override
   Future<bool> loginWithApple({required String idToken, String? fullName, String? email}) async => true;
 
-  @override
-  void loginAsGuest() {
-    state = const Authenticated(
-      UserModel(
-        id: 'guest_user_1',
-        fullName: 'زائر مجالس العالم',
-        email: 'guest@majlis-alim.com',
-        role: 'STUDENT',
-      ),
-    );
-  }
 
   @override
   Future<void> logout() async {

@@ -1,6 +1,6 @@
 # ─────────────────────────────────────────────────────────────────────────────
 # scripts/test-integration-mobile.ps1
-# End-to-End PowerShell Orchestrator for Majlis Al-Alim Integration Suite
+# End-to-End PowerShell Orchestrator for Majalis Al-Elm Integration Suite
 # ─────────────────────────────────────────────────────────────────────────────
 param (
     [switch]$ResetDb
@@ -10,15 +10,15 @@ $ErrorActionPreference = "Stop"
 $rootDir = Resolve-Path "$PSScriptRoot\.."
 Set-Location $rootDir
 
-$containerName = "majlis-alim-postgres-test"
-$imageName = "majlis-alim/postgres:dev"
-$dbName = "majlisalim"
-$dbUser = "majlisalim"
-$dbPass = "majlisalim_test_pass_2026"
+$containerName = "majalis-elm-postgres-test"
+$imageName = "majalis-elm/postgres:dev"
+$dbName = "majaliselm"
+$dbUser = "majaliselm"
+$dbPass = "majaliselm_test_pass_2026"
 $dbPort = "5432"
 
 Write-Host "=================================================================" -ForegroundColor Cyan
-Write-Host "  Majlis Al-Alim — Mobile Integration & PostgreSQL Test Pipeline " -ForegroundColor Cyan
+Write-Host "  Majalis Al-Elm — Mobile Integration & PostgreSQL Test Pipeline " -ForegroundColor Cyan
 Write-Host "=================================================================" -ForegroundColor Cyan
 
 # 1. Ensure JWT RS256 Keys
@@ -32,13 +32,13 @@ if (-not (Test-Path "secrets/jwt_private_key.pem") -or -not (Test-Path "secrets/
 # 2. Start PostgreSQL Container
 if ($ResetDb) {
     Write-Host ">>> [2/7] Resetting PostgreSQL container (--reset-db)..." -ForegroundColor Yellow
-    docker rm -f $containerName al-fajr-postgres majlis-alim-postgres 2>$null | Out-Null
+    docker rm -f $containerName al-fajr-postgres majalis-elm-postgres 2>$null | Out-Null
 }
 
 $running = docker ps --format '{{.Names}}' | Where-Object { $_ -eq $containerName }
 if (-not $running) {
     Write-Host ">>> [2/7] Starting PostgreSQL container ($containerName)..." -ForegroundColor Yellow
-    docker rm -f $containerName al-fajr-postgres majlis-alim-postgres 2>$null | Out-Null
+    docker rm -f $containerName al-fajr-postgres majalis-elm-postgres 2>$null | Out-Null
     docker run -d --name $containerName `
         -e "POSTGRES_DB=$dbName" `
         -e "POSTGRES_USER=$dbUser" `

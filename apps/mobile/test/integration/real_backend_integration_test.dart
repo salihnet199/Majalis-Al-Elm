@@ -24,7 +24,7 @@ void main() {
 
   // Generate dynamic unique credentials for each test run to ensure strict isolation
   final runId = '${DateTime.now().millisecondsSinceEpoch}_${Random().nextInt(99999)}';
-  final testEmail = 'user_$runId@test.majlisalim.local';
+  final testEmail = 'user_$runId@test.majaliselm.local';
   const testPassword = 'StrongTestPass123!';
   const testFullName = 'المستخدم التجريبي المتكامل';
 
@@ -47,7 +47,7 @@ void main() {
     );
   });
 
-  group('Majlis Al-Alim — Real PostgreSQL & Backend Integration Suite (8 Scenarios)', () {
+  group('Majalis Al-Elm — Real PostgreSQL & Backend Integration Suite (8 Scenarios)', () {
     String? initialRefreshToken;
     String? rotatedRefreshToken;
 

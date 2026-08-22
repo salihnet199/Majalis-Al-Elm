@@ -102,7 +102,7 @@ await client.connect();
 
 console.log('');
 console.log('═══════════════════════════════════════════════════════════════');
-console.log('  Majlis Al-Alim — Migration Validation (pg-mem)');
+console.log('  Majalis Al-Elm — Migration Validation (pg-mem)');
 console.log(`  ${MIGRATIONS.length} migrations`);
 console.log('═══════════════════════════════════════════════════════════════');
 console.log('  Preprocessing: CITEXT/INET/TIMESTAMPTZ → TEXT/TIMESTAMP');

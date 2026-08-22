@@ -148,7 +148,7 @@ export class FcmNotificationSenderAdapter implements NotificationSenderPort, OnM
             priority: 'high' as const,
             notification: {
               sound: 'default',
-              channelId: 'majlis_alim_announcements',
+              channelId: 'majalis_elm_announcements',
               clickAction: 'FLUTTER_NOTIFICATION_CLICK',
             },
           },

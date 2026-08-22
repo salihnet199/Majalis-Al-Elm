@@ -100,7 +100,7 @@ export const ContentModal: React.FC<ContentModalProps> = ({ open, initialData, o
       open={open}
       title={
         <div className="font-ruqaa text-gold-400 font-bold text-xl">
-          {isEditing ? 'تعديل المحتوى العلمي' : 'نشر محتوى جديد لمجالس العالم'}
+          {isEditing ? 'تعديل المحتوى العلمي' : 'نشر محتوى جديد لمجالس العلم'}
         </div>
       }
       okText={isEditing ? 'حفظ التعديلات' : 'نشر المحتوى الآن'}
@@ -202,7 +202,7 @@ export const ContentModal: React.FC<ContentModalProps> = ({ open, initialData, o
           name="mediaUrl"
           label={<span className="text-cream-200 font-medium">رابط الملف الصوتي / ملف الـ PDF</span>}
         >
-          <Input placeholder="https://cdn.majlis-alim.app/media/audio/sample.mp3" dir="ltr" />
+          <Input placeholder="https://cdn.majalis-elm.app/media/audio/sample.mp3" dir="ltr" />
         </Form.Item>
 
         <Form.Item

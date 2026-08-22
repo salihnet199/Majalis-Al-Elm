@@ -1,3 +1,3 @@
-# MajlisAlAlimMonorepo (مجالس العالم)
+# MajalisAlElmMonorepo (مجالس العلم)
 
-Monorepo for **Majlis Al-Alim** Educational & Religious Platform (Backend + Mobile Application).
+Monorepo for **Majalis Al-Elm** Educational & Religious Platform (Backend + Mobile Application).

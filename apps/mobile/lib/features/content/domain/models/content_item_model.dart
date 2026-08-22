@@ -33,7 +33,7 @@ class ContentItemModel extends Equatable {
     final authorObj = json['author'];
     final authorName = authorObj is Map<String, dynamic>
         ? (authorObj['name'] as String? ?? '')
-        : (json['author'] as String? ?? 'مجالس العالم');
+        : (json['author'] as String? ?? 'مجالس العلم');
 
     final categoryObj = json['category'];
     final categoryName = categoryObj is Map<String, dynamic>
@@ -52,7 +52,7 @@ class ContentItemModel extends Equatable {
       description: json['description'] as String? ?? '',
       type: json['type'] as String? ?? 'TEXT',
       url: mediaUrl,
-      author: authorName.isNotEmpty ? authorName : 'مجالس العالم',
+      author: authorName.isNotEmpty ? authorName : 'مجالس العلم',
       category: categoryName,
       durationSeconds: durationSec,
       pageCount: pageCount,

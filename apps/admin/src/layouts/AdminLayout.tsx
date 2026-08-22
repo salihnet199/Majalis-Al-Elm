@@ -29,7 +29,7 @@ export const AdminLayout: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
 
-  const brandTitle = getText('header.brand_title', 'مجالس العالم');
+  const brandTitle = getText('header.brand_title', 'مجالس العلم');
   const sheikhSubtitle = getText('header.sheikh_subtitle', 'فضيلة الشيخ علي الويسي حفظه الله');
   const basmala = getText('header.basmala', 'بِسْمِ اللَّهِ الرَّحْمَٰنِ الرَّحِيمِ');
 

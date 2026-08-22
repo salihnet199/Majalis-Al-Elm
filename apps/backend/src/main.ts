@@ -1,5 +1,5 @@
 /**
- * Majlis Al-Alim Platform — NestJS Backend Entry Point
+ * Majalis Al-Elm Platform — NestJS Backend Entry Point
  *
  * Architecture: Modular Monolith (ADR-001)
  * Clean Architecture — 4 concentric layers (P-01)
@@ -66,12 +66,12 @@ async function bootstrap() {
   // Accessible: /docs in dev, admin-only in prod (enforced by Nginx/Guard)
   if (process.env.NODE_ENV !== 'production') {
     const swaggerConfig = new DocumentBuilder()
-      .setTitle('Majlis Al-Alim API')
-      .setDescription('Majlis Al-Alim Educational Platform — REST API v1')
+      .setTitle('Majalis Al-Elm API')
+      .setDescription('Majalis Al-Elm Educational Platform — REST API v1')
       .setVersion('1.1.0')
       .addBearerAuth()
       .addServer('http://localhost:3000', 'Local Dev')
-      .addServer('https://api-staging.majlis-alim.app', 'Staging')
+      .addServer('https://api-staging.majalis-elm.app', 'Staging')
       .build();
 
     const document = SwaggerModule.createDocument(app, swaggerConfig);
@@ -85,7 +85,7 @@ async function bootstrap() {
   await app.listen(port, '0.0.0.0');
 
   Logger.log(
-    `🚀 Majlis Al-Alim API running at http://localhost:${port}/api/v1`,
+    `🚀 Majalis Al-Elm API running at http://localhost:${port}/api/v1`,
     'Bootstrap',
   );
   if (process.env.NODE_ENV !== 'production') {

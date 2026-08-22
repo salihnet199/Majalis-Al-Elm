@@ -1,6 +1,6 @@
 -- ─────────────────────────────────────────────────────────────────────────────
 -- Migration 000 — Bootstrap Extensions
--- Majlis Al-Alim Platform · DB-SCHEMA.md v1.1.0
+-- Majalis Al-Elm Platform · DB-SCHEMA.md v1.1.0
 -- ─────────────────────────────────────────────────────────────────────────────
 -- pg_uuidv7 : مطلوب — يوفّر uuid_generate_v7() للـ Primary Keys
 -- citext    : مطلوب — حقول email بلا حساسية لحالة الأحرف

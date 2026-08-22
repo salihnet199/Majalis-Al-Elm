@@ -1,8 +1,8 @@
 class AppConstants {
   AppConstants._();
 
-  static const String appName = 'مجالس العالم';
-  static const String appEnglishName = 'Majlis Al-Alim';
+  static const String appName = 'مجالس العلم';
+  static const String appEnglishName = 'Majalis Al-Elm';
   static const String sheikhName = 'فضيلة الشيخ علي الويسي';
 
   // Secure Storage Keys

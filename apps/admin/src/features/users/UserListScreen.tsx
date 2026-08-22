@@ -69,7 +69,7 @@ export const UserListScreen: React.FC = () => {
             {
               id: '01916362-7000-7000-8000-000000000001',
               fullName: 'فضيلة الشيخ علي الويسي',
-              email: 'sheikh.ali@majlis-alim.app',
+              email: 'sheikh.ali@majalis-elm.app',
               role: 'SuperAdmin' as Role,
               isSuspended: false,
               createdAt: '2026-01-01T00:00:00Z',
@@ -77,7 +77,7 @@ export const UserListScreen: React.FC = () => {
             {
               id: '01916362-7000-7000-8000-000000000002',
               fullName: 'أحمد بن محمد (مشرف المحتوى)',
-              email: 'ahmed.admin@majlis-alim.app',
+              email: 'ahmed.admin@majalis-elm.app',
               role: 'Admin' as Role,
               isSuspended: false,
               createdAt: '2026-02-01T00:00:00Z',
@@ -85,7 +85,7 @@ export const UserListScreen: React.FC = () => {
             {
               id: '01916362-7000-7000-8000-000000000003',
               fullName: 'عمر خالد (محرر الفتاوى)',
-              email: 'omar.editor@majlis-alim.app',
+              email: 'omar.editor@majalis-elm.app',
               role: 'Editor' as Role,
               isSuspended: false,
               createdAt: '2026-02-10T00:00:00Z',
@@ -279,7 +279,7 @@ export const UserListScreen: React.FC = () => {
             إدارة المستخدمين والصلاحيات الإدارية
           </Title>
           <Text className="text-cream-300 text-sm font-cairo">
-            التحكم في حسابات المشرفين والمحررين، تعيين الصلاحيات، وإدارة الطلاب المسجلين لمنصة مجالس العالم
+            التحكم في حسابات المشرفين والمحررين، تعيين الصلاحيات، وإدارة الطلاب المسجلين لمنصة مجالس العلم
           </Text>
         </div>
         <div className="flex items-center gap-3">
@@ -403,7 +403,7 @@ export const UserListScreen: React.FC = () => {
               { type: 'email', message: 'صيغة البريد غير صحيحة' },
             ]}
           >
-            <Input placeholder="user@majlis-alim.app" dir="ltr" className="rounded-xl bg-mocha-950 border-gold-500/30 text-cream-100" />
+            <Input placeholder="user@majalis-elm.app" dir="ltr" className="rounded-xl bg-mocha-950 border-gold-500/30 text-cream-100" />
           </Form.Item>
 
           <Form.Item

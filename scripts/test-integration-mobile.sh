@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # ─────────────────────────────────────────────────────────────────────────────
 # scripts/test-integration-mobile.sh
-# End-to-End Orchestrator for Majlis Al-Alim Integration Suite
+# End-to-End Orchestrator for Majalis Al-Elm Integration Suite
 # 
 # 1. Start Docker PostgreSQL (with pg_uuidv7)
 # 2. Wait for pg_isready
@@ -17,11 +17,11 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT_DIR"
 
-CONTAINER_NAME="majlis-alim-postgres-test"
-IMAGE_NAME="majlis-alim/postgres:dev"
-DB_NAME="majlisalim"
-DB_USER="majlisalim"
-DB_PASS="majlisalim_test_pass_2026"
+CONTAINER_NAME="majalis-elm-postgres-test"
+IMAGE_NAME="majalis-elm/postgres:dev"
+DB_NAME="majaliselm"
+DB_USER="majaliselm"
+DB_PASS="majaliselm_test_pass_2026"
 DB_PORT="5432"
 
 RESET_DB=false
@@ -32,7 +32,7 @@ for arg in "$@"; do
 done
 
 echo "================================================================="
-echo "  Majlis Al-Alim — Mobile Integration & PostgreSQL Test Pipeline "
+echo "  Majalis Al-Elm — Mobile Integration & PostgreSQL Test Pipeline "
 echo "================================================================="
 
 # 1. Ensure JWT keys exist
@@ -46,12 +46,12 @@ fi
 # 2. Start PostgreSQL Container
 if [ "$RESET_DB" = true ]; then
   echo ">>> [2/7] Resetting PostgreSQL container (--reset-db)..."
-  docker rm -f "$CONTAINER_NAME" al-fajr-postgres majlis-alim-postgres 2>/dev/null || true
+  docker rm -f "$CONTAINER_NAME" al-fajr-postgres majalis-elm-postgres 2>/dev/null || true
 fi
 
 if ! docker ps --format '{{.Names}}' | grep -q "^${CONTAINER_NAME}$"; then
   echo ">>> [2/7] Starting PostgreSQL container ($CONTAINER_NAME)..."
-  docker rm -f "$CONTAINER_NAME" al-fajr-postgres majlis-alim-postgres 2>/dev/null || true
+  docker rm -f "$CONTAINER_NAME" al-fajr-postgres majalis-elm-postgres 2>/dev/null || true
   docker run -d \
     --name "$CONTAINER_NAME" \
     -e POSTGRES_DB="$DB_NAME" \

@@ -141,7 +141,7 @@ class _PdfViewerScreenState extends State<PdfViewerScreen> {
                   ),
                   const SizedBox(height: 8),
                   Text(
-                    'مكتبة كتب ومنشورات مجالس العالم',
+                    'مكتبة كتب ومنشورات مجالس العلم',
                     style: AppTypography.bodySmall.copyWith(color: AppColors.textSecondaryLight),
                   ),
                 ],

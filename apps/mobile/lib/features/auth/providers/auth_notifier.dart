@@ -126,18 +126,6 @@ class AuthNotifier extends StateNotifier<AuthState> {
     }
   }
 
-  /// Login as a Guest / Demo user for testing and offline preview
-  void loginAsGuest() {
-    state = const Authenticated(
-      UserModel(
-        id: 'guest_user_1',
-        fullName: 'زائر مجالس العالم',
-        email: 'guest@majlis-alim.com',
-        role: 'STUDENT',
-      ),
-    );
-  }
-
   /// Login or register with Google OAuth
   Future<bool> loginWithGoogle({
     required String idToken,
@@ -153,16 +141,15 @@ class AuthNotifier extends StateNotifier<AuthState> {
       );
       state = Authenticated(response.user);
       return true;
+    } on AppException catch (e) {
+      state = AuthError(message: e.message, code: e.code);
+      return false;
     } catch (_) {
-      // Smart Fallback for OAuth mock / preview mode
-      final user = UserModel(
-        id: 'google_user_${DateTime.now().millisecondsSinceEpoch}',
-        fullName: fullName ?? 'طالب علم (Google)',
-        email: email ?? 'student.google@majlis-alim.com',
-        role: 'STUDENT',
+      state = const AuthError(
+        message: 'تعذر تسجيل الدخول عبر Google، يرجى المحاولة لاحقاً',
+        code: 'OAUTH_ERROR',
       );
-      state = Authenticated(user);
-      return true;
+      return false;
     }
   }
 
@@ -181,16 +168,15 @@ class AuthNotifier extends StateNotifier<AuthState> {
       );
       state = Authenticated(response.user);
       return true;
+    } on AppException catch (e) {
+      state = AuthError(message: e.message, code: e.code);
+      return false;
     } catch (_) {
-      // Smart Fallback for OAuth mock / preview mode
-      final user = UserModel(
-        id: 'apple_user_${DateTime.now().millisecondsSinceEpoch}',
-        fullName: fullName ?? 'طالب علم (Apple)',
-        email: email ?? 'student.apple@majlis-alim.com',
-        role: 'STUDENT',
+      state = const AuthError(
+        message: 'تعذر تسجيل الدخول عبر Apple، يرجى المحاولة لاحقاً',
+        code: 'OAUTH_ERROR',
       );
-      state = Authenticated(user);
-      return true;
+      return false;
     }
   }
 

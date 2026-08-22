@@ -19,7 +19,7 @@ describe('AuthStore Unit Tests', () => {
     const mockUser: UserProfile = {
       id: '01920abc-1234-7000-8000-000000000001',
       fullName: 'مدير النظام',
-      email: 'admin@majlis-alim.app',
+      email: 'admin@majalis-elm.app',
       role: 'Admin',
     };
 
@@ -45,7 +45,7 @@ describe('AuthStore Unit Tests', () => {
     const mockUser: UserProfile = {
       id: '01920abc-1234-7000-8000-000000000002',
       fullName: 'سوبر أدمن',
-      email: 'superadmin@majlis-alim.app',
+      email: 'superadmin@majalis-elm.app',
       role: 'SuperAdmin',
     };
 

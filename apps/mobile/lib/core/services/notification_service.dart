@@ -30,8 +30,8 @@ class NotificationService {
 
   /// High importance notification channel for Android
   static const AndroidNotificationChannel _channel = AndroidNotificationChannel(
-    'majlis_alim_announcements',
-    'إعلانات ودروس مجالس العالم',
+    'majalis_elm_announcements',
+    'إعلانات ودروس مجالس العلم',
     description: 'تنبيهات البث المباشر، الدروس العلمية، والفتاوى الشرعية',
     importance: Importance.max,
     playSound: true,

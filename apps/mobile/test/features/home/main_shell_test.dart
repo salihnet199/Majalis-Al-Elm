@@ -119,17 +119,6 @@ class MockAuthNotifier extends StateNotifier<AuthState> implements AuthNotifier 
   @override
   Future<bool> loginWithApple({required String idToken, String? fullName, String? email}) async => true;
 
-  @override
-  void loginAsGuest() {
-    state = const Authenticated(
-      UserModel(
-        id: 'guest_user_1',
-        fullName: 'زائر مجالس العالم',
-        email: 'guest@majlis-alim.com',
-        role: 'STUDENT',
-      ),
-    );
-  }
 
   @override
   Future<void> logout() async {

@@ -5,7 +5,7 @@ INSERT INTO id_users (id, full_name, email, password_hash, locale)
 VALUES (
   '018d0000-0000-7000-8000-000000000001'::uuid,
   'الشيخ الكاتب التجريبي',
-  'seed_author@test.majlisalim.local',
+  'seed_author@test.majaliselm.local',
   '$2b$10$F4AFFIeofhqr2Rbww1zWOe5Xmxf7INQNKnyFN7vn3Pq/eD8aj5yae',
   'ar'
 ) ON CONFLICT (id) DO NOTHING;
@@ -61,8 +61,8 @@ ON CONFLICT (entity_type, entity_id, locale, field_name) DO NOTHING;
 -- 5. Test Media Assets
 INSERT INTO ct_media_assets (id, original_name, storage_key, mime_type, size_bytes, duration_ms, page_count, cdn_url, uploaded_by)
 VALUES
-  ('018d0000-0000-7000-8000-000000000040'::uuid, 'intro_tawheed.mp3', 'media/audio/intro_tawheed.mp3', 'audio/mpeg', 15485760, 1800000, NULL, 'https://cdn.majlisalim.local/media/audio/intro_tawheed.mp3', '018d0000-0000-7000-8000-000000000001'::uuid),
-  ('018d0000-0000-7000-8000-000000000041'::uuid, 'kitab_at_tawheed.pdf', 'media/pdf/kitab_at_tawheed.pdf', 'application/pdf', 5242880, NULL, 120, 'https://cdn.majlisalim.local/media/pdf/kitab_at_tawheed.pdf', '018d0000-0000-7000-8000-000000000001'::uuid)
+  ('018d0000-0000-7000-8000-000000000040'::uuid, 'intro_tawheed.mp3', 'media/audio/intro_tawheed.mp3', 'audio/mpeg', 15485760, 1800000, NULL, 'https://cdn.majaliselm.local/media/audio/intro_tawheed.mp3', '018d0000-0000-7000-8000-000000000001'::uuid),
+  ('018d0000-0000-7000-8000-000000000041'::uuid, 'kitab_at_tawheed.pdf', 'media/pdf/kitab_at_tawheed.pdf', 'application/pdf', 5242880, NULL, 120, 'https://cdn.majaliselm.local/media/pdf/kitab_at_tawheed.pdf', '018d0000-0000-7000-8000-000000000001'::uuid)
 ON CONFLICT (storage_key) DO NOTHING;
 
 -- 6. Test Content Items

@@ -12,8 +12,8 @@ class AppLocalizations {
 
   static const _localizedValues = <String, Map<String, String>>{
     'ar': {
-      'app_name': 'مجالس العالم',
-      'welcome_title': 'مرحباً بك في مجالس العالم',
+      'app_name': 'مجالس العلم',
+      'welcome_title': 'مرحباً بك في مجالس العلم',
       'welcome_subtitle': 'المنصة العلمية لدروس وفتاوى فضيلة الشيخ علي الويسي',
       'login': 'تسجيل الدخول',
       'register': 'إنشاء حساب جديد',
@@ -43,8 +43,8 @@ class AppLocalizations {
       'error_occurred': 'حدث خطأ غير متوقع',
     },
     'en': {
-      'app_name': 'Majlis Al-Alim',
-      'welcome_title': 'Welcome to Majlis Al-Alim',
+      'app_name': 'Majalis Al-Elm',
+      'welcome_title': 'Welcome to Majalis Al-Elm',
       'welcome_subtitle': 'Scientific Platform of Sheikh Ali Al-Waisi',
       'login': 'Sign In',
       'register': 'Create Account',
