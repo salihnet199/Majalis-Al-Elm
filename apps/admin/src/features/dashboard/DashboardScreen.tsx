@@ -11,6 +11,7 @@ import {
   Modal,
   Input,
   message,
+  Alert,
 } from 'antd';
 import {
   UserOutlined,
@@ -25,6 +26,7 @@ import {
 } from '@ant-design/icons';
 import { useQuery } from '@tanstack/react-query';
 import { apiClient } from '../../core/api/client';
+import { toArabicErrorMessage } from '../../core/api/errorMessage';
 import { queryKeys } from '../../core/queries/queryKeys';
 import { useCmsStore } from '../../core/stores/cms.store';
 
@@ -55,46 +57,63 @@ export const DashboardScreen: React.FC = () => {
   const showTopContent = isBlockEnabled('widget_top_content');
 
   // Query 1: Analytics Overview
+  //
+  // SECURITY: no catch here. The previous fallback returned invented figures
+  // (86 items / 1420 users / 48920 views) plus four invented content rows, so a
+  // dead backend produced a complete, plausible dashboard.
   const {
     data: analyticsData,
+    isError: isAnalyticsError,
+    error: analyticsError,
     refetch: refetchAnalytics,
   } = useQuery({
     queryKey: queryKeys.analytics.overview(),
     queryFn: async () => {
-      try {
-        const res = await apiClient.get<{ data: any }>('/admin/analytics/overview');
-        return res.data?.data || res.data;
-      } catch {
-        return {
-          totalContent: 86,
-          totalUsers: 1420,
-          totalViews: 48920,
-          activeDrafts: 5,
-          topContent: [
-            { id: '1', title: 'شرح كتاب العقيدة الطحاوية — الدرس 14', type: 'AUDIO', viewCount: 12450 },
-            { id: '2', title: 'منزلة الصبر واليقين في القرآن الكريم', type: 'TEXT', viewCount: 8930 },
-            { id: '3', title: 'فتاوى المعاملات المالية المعاصرة', type: 'PDF', viewCount: 7120 },
-            { id: '4', title: 'سلسلة السيرة النبوية العطرة', type: 'AUDIO', viewCount: 6540 },
-          ],
-        };
-      }
+      const res = await apiClient.get<{ data: any }>('/admin/analytics/overview');
+      return res.data?.data || res.data;
     },
     staleTime: 30000,
+    retry: 1,
   });
 
   // Query 2: System Health
-  const { refetch: refetchHealth } = useQuery({
+  //
+  // SECURITY: this is the most dangerous fabrication removed in this pass. The
+  // catch returned { status: 'ok', database: 'up' } whenever the health probe
+  // itself failed — telling the admin the platform was healthy at the exact
+  // moment it was unreachable. The real state is now rendered, failure included.
+  const {
+    data: healthData,
+    isError: isHealthError,
+    isLoading: isHealthLoading,
+    refetch: refetchHealth,
+  } = useQuery({
     queryKey: queryKeys.systemHealth.all,
     queryFn: async () => {
-      try {
-        const res = await apiClient.get('/health');
-        return res.data;
-      } catch {
-        return { status: 'ok', info: { database: { status: 'up' } } };
-      }
+      const res = await apiClient.get<{ status?: string; info?: Record<string, { status?: string }> }>('/health');
+      return res.data;
     },
     staleTime: 15000,
+    retry: 1,
   });
+
+  const isBackendReachable = !isHealthError && healthData?.status === 'ok';
+
+  const handleRefresh = async () => {
+    const [analytics, health] = await Promise.all([refetchAnalytics(), refetchHealth()]);
+    // SECURITY: the toast reports the real outcome. It used to claim success
+    // unconditionally, without even waiting for the refetch to resolve.
+    if (analytics.isError || health.isError) {
+      message.error(
+        toArabicErrorMessage(
+          analytics.error ?? health.error,
+          'تعذر تحديث الإحصائيات، البيانات المعروضة قد تكون غير محدثة',
+        ),
+      );
+      return;
+    }
+    message.success('تم تحديث الإحصائيات لحظياً');
+  };
 
   const topContentColumns = [
     {
@@ -151,20 +170,51 @@ export const DashboardScreen: React.FC = () => {
           <Text className="text-cream-300 text-sm font-cairo">
             {welcomeDesc}
           </Text>
+          {/* Truthful service-state indicator — replaces the fabricated health fallback */}
+          <div className="mt-2">
+            <Tag
+              color={isHealthLoading ? 'default' : isBackendReachable ? 'success' : 'error'}
+              className="font-cairo font-semibold"
+            >
+              {isHealthLoading
+                ? 'جارٍ فحص حالة الخدمة…'
+                : isBackendReachable
+                  ? 'الخدمة متصلة وتعمل'
+                  : 'تعذر الوصول إلى الخادم — الحالة الحقيقية غير سليمة'}
+            </Tag>
+          </div>
         </div>
         <Button
           type="primary"
           icon={<ReloadOutlined />}
-          onClick={() => {
-            refetchAnalytics();
-            refetchHealth();
-            message.success('تم تحديث الإحصائيات لحظياً');
-          }}
+          onClick={handleRefresh}
           className="bg-gradient-to-r from-gold-600 to-gold-500 text-mocha-950 font-bold font-cairo rounded-xl shadow-md border-none"
         >
           تحديث البيانات
         </Button>
       </div>
+
+      {/* Analytics failure banner — replaces the deleted fabricated statistics */}
+      {isAnalyticsError && (
+        <Alert
+          type="error"
+          showIcon
+          className="rounded-2xl font-cairo"
+          message={<span className="font-bold">تعذر تحميل إحصائيات المنصة من الخادم</span>}
+          description={
+            <span className="text-xs">
+              {toArabicErrorMessage(analyticsError, 'تعذر جلب الإحصائيات، يرجى المحاولة مرة أخرى')}
+              {' — '}
+              تُعرض القيم كـ «—» ولا تُستبدل ببيانات تجريبية حتى لا تُلتبس بأرقام المنصة الحقيقية.
+            </span>
+          }
+          action={
+            <Button size="small" danger onClick={() => refetchAnalytics()} className="font-cairo">
+              إعادة المحاولة
+            </Button>
+          }
+        />
+      )}
 
       {/* ── Quick Statistics Metric Cards ── */}
       {showQuickStats && (
@@ -173,7 +223,7 @@ export const DashboardScreen: React.FC = () => {
             <Card className="border border-gold-500/25 bg-mocha-900/80 rounded-2xl shadow-lg hover:border-gold-400 transition-all">
               <Statistic
                 title={<span className="text-cream-300 font-cairo text-xs font-semibold">إجمالي المواد المنشورة</span>}
-                value={analyticsData?.totalContent || 86}
+                value={analyticsData?.totalContent ?? '—'}
                 prefix={<BookOutlined className="text-gold-400 ml-2" />}
                 valueStyle={{ color: '#D4AF37', fontWeight: 800, fontFamily: 'Cairo' }}
               />
@@ -188,13 +238,13 @@ export const DashboardScreen: React.FC = () => {
             <Card className="border border-gold-500/25 bg-mocha-900/80 rounded-2xl shadow-lg hover:border-gold-400 transition-all">
               <Statistic
                 title={<span className="text-cream-300 font-cairo text-xs font-semibold">المستمعون والزوار</span>}
-                value={analyticsData?.totalViews || 48920}
+                value={analyticsData?.totalViews ?? '—'}
                 prefix={<SoundOutlined className="text-gold-400 ml-2" />}
                 valueStyle={{ color: '#E5C158', fontWeight: 800, fontFamily: 'Cairo' }}
               />
               <div className="mt-2 text-[11px] text-cream-400 font-cairo flex items-center justify-between">
                 <span>إجمالي الاستماع والمطالعة</span>
-                <span className="text-emerald-400 font-bold">+18% هذا الشهر</span>
+                <Tag color="gold">من الخادم</Tag>
               </div>
             </Card>
           </Col>
@@ -203,7 +253,7 @@ export const DashboardScreen: React.FC = () => {
             <Card className="border border-gold-500/25 bg-mocha-900/80 rounded-2xl shadow-lg hover:border-gold-400 transition-all">
               <Statistic
                 title={<span className="text-cream-300 font-cairo text-xs font-semibold">المستخدمون المسجلون</span>}
-                value={analyticsData?.totalUsers || 1420}
+                value={analyticsData?.totalUsers ?? '—'}
                 prefix={<UserOutlined className="text-gold-400 ml-2" />}
                 valueStyle={{ color: '#FDFBF7', fontWeight: 800, fontFamily: 'Cairo' }}
               />
@@ -218,7 +268,7 @@ export const DashboardScreen: React.FC = () => {
             <Card className="border border-gold-500/25 bg-mocha-900/80 rounded-2xl shadow-lg hover:border-gold-400 transition-all">
               <Statistic
                 title={<span className="text-cream-300 font-cairo text-xs font-semibold">المسودات قيد المراجعة</span>}
-                value={analyticsData?.activeDrafts || 5}
+                value={analyticsData?.activeDrafts ?? '—'}
                 prefix={<ClockCircleOutlined className="text-amber-400 ml-2" />}
                 valueStyle={{ color: '#F59E0B', fontWeight: 800, fontFamily: 'Cairo' }}
               />
@@ -252,6 +302,15 @@ export const DashboardScreen: React.FC = () => {
                   dataSource={(analyticsData?.topContent as any) || []}
                   rowKey="id"
                   pagination={false}
+                  locale={{
+                    emptyText: (
+                      <span className="font-cairo text-cream-300 text-sm">
+                        {isAnalyticsError
+                          ? 'لا يمكن عرض المواد لتعذر الاتصال بالخادم'
+                          : 'لا توجد مواد مسجَّلة بعد'}
+                      </span>
+                    ),
+                  }}
                   className="overflow-x-auto"
                 />
               </Card>
@@ -340,18 +399,25 @@ export const DashboardScreen: React.FC = () => {
                   {sheikhBio}
                 </div>
 
-                {/* Scholar Stats */}
+                {/* Scholar Stats — real values only. '—' means "the backend does
+                    not expose this figure yet", never an invented number. */}
                 <div className="grid grid-cols-3 gap-2 pt-1 text-center">
                   <div className="p-2 rounded-lg bg-mocha-800/80 border border-gold-500/20">
-                    <div className="text-gold-400 font-bold font-mono text-sm">86</div>
+                    <div className="text-gold-400 font-bold font-mono text-sm">
+                      {analyticsData?.totalContent ?? '—'}
+                    </div>
                     <div className="text-[10px] text-cream-400">مادة علمية</div>
                   </div>
                   <div className="p-2 rounded-lg bg-mocha-800/80 border border-gold-500/20">
-                    <div className="text-gold-400 font-bold font-mono text-sm">42</div>
+                    <div className="text-gold-400 font-bold font-mono text-sm">
+                      {analyticsData?.totalFatwas ?? '—'}
+                    </div>
                     <div className="text-[10px] text-cream-400">فتوى منشورة</div>
                   </div>
                   <div className="p-2 rounded-lg bg-mocha-800/80 border border-gold-500/20">
-                    <div className="text-gold-400 font-bold font-mono text-sm">24</div>
+                    <div className="text-gold-400 font-bold font-mono text-sm">
+                      {analyticsData?.totalAudioSeries ?? '—'}
+                    </div>
                     <div className="text-[10px] text-cream-400">سلسلة صوتية</div>
                   </div>
                 </div>
@@ -373,7 +439,12 @@ export const DashboardScreen: React.FC = () => {
         cancelText="إلغاء"
         onCancel={() => setIsEditProfileOpen(false)}
         onOk={() => {
-          message.success('تم تحديث بيانات وصورة فضيلة الشيخ بنجاح.');
+          // SECURITY: this modal has no backend call at all — the bio lives in the
+          // local CMS store and the avatar URL only in component state. Claiming
+          // "تم التحديث بنجاح" implied server-side persistence that never happened.
+          message.warning(
+            'حُفظت النبذة محلياً في هذا المتصفح فقط ولم تُرسل إلى الخادم، ورابط الصورة لا يبقى بعد إعادة التحميل',
+          );
           setIsEditProfileOpen(false);
         }}
         width={580}

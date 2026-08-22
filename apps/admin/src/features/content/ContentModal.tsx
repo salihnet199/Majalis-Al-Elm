@@ -1,7 +1,8 @@
 import React, { useEffect } from 'react';
-import { Modal, Form, Input, Select, message } from 'antd';
+import { Modal, Form, Input, Select, message, Alert } from 'antd';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { apiClient } from '../../core/api/client';
+import { toArabicErrorMessage } from '../../core/api/errorMessage';
 import { queryKeys } from '../../core/queries/queryKeys';
 import { ContentItem } from '../../core/types/content.types';
 
@@ -20,28 +21,29 @@ export const ContentModal: React.FC<ContentModalProps> = ({ open, initialData, o
   const isEditing = !!initialData;
 
   // Dynamic Categories Query from ct_categories
-  const { data: categories = [] } = useQuery({
+  //
+  // SECURITY: no fallback list. Fabricated categories here were the worst variant
+  // of the pattern: the admin would pick an invented categoryId and publish real
+  // material against a section that does not exist on the server.
+  //
+  // NOTE: this shares queryKeys.content.categories() with CategoriesScreen, so the
+  // mapped shape must stay identical — including contentCount, which that screen
+  // uses to decide whether deleting a category needs content reassignment.
+  const { data: categories = [], isError: isCategoriesError, error: categoriesError } = useQuery({
     queryKey: queryKeys.content.categories(),
     queryFn: async () => {
-      try {
-        const res = await apiClient.get('/content/categories');
-        const items = res.data?.data || res.data || [];
-        return items.map((cat: any) => ({
-          id: cat.id || cat.slug,
-          slug: cat.slug,
-          name: cat.name || cat.translations?.[0]?.name || cat.slug,
-        }));
-      } catch {
-        return [
-          { id: '1', slug: 'fatwas', name: 'الفتاوى الشرعية' },
-          { id: '2', slug: 'lessons', name: 'الدروس العلمية والخطب' },
-          { id: '3', slug: 'articles', name: 'المقالات والبحوث' },
-          { id: '4', slug: 'audio', name: 'الصوتيات والدروس المسجلة' },
-          { id: '5', slug: 'sirah', name: 'السيرة النبوية والتاريخ' },
-        ];
-      }
+      const res = await apiClient.get('/content/categories');
+      const items = res.data?.data || res.data || [];
+      return items.map((cat: any) => ({
+        id: cat.id || cat.slug,
+        slug: cat.slug,
+        name: cat.name || cat.translations?.[0]?.name || cat.slug,
+        contentCount: cat.contentCount || 0,
+        createdAt: cat.createdAt,
+      }));
     },
     staleTime: 30000,
+    retry: 1,
   });
 
   useEffect(() => {
@@ -84,8 +86,8 @@ export const ContentModal: React.FC<ContentModalProps> = ({ open, initialData, o
       queryClient.invalidateQueries({ queryKey: queryKeys.content.all });
       onClose();
     },
-    onError: (err: any) => {
-      message.error(err.response?.data?.error?.message || 'فشلت عملية حفظ المحتوى');
+    onError: (err) => {
+      message.error(toArabicErrorMessage(err, 'فشلت عملية حفظ المحتوى'));
     },
   });
 
@@ -114,6 +116,22 @@ export const ContentModal: React.FC<ContentModalProps> = ({ open, initialData, o
       cancelButtonProps={{ className: 'font-cairo' }}
     >
       <Form form={form} layout="vertical" className="mt-4 font-cairo">
+        {isCategoriesError && (
+          <Alert
+            type="error"
+            showIcon
+            className="mb-4 rounded-xl font-cairo"
+            message={<span className="font-bold text-xs">تعذر تحميل قائمة الأقسام من الخادم</span>}
+            description={
+              <span className="text-xs">
+                {toArabicErrorMessage(categoriesError, 'تعذر جلب الأقسام')}
+                {' — '}
+                لا تُعرض أقسام تجريبية، لأن النشر إلى قسم غير موجود يُفقد المادة مكانها الصحيح.
+              </span>
+            }
+          />
+        )}
+
         <Form.Item
           name="title"
           label={<span className="text-cream-200 font-bold">عنوان المحتوى / الفتوى / الدرس</span>}
@@ -128,7 +146,13 @@ export const ContentModal: React.FC<ContentModalProps> = ({ open, initialData, o
             label={<span className="text-cream-200 font-bold">القسم / التصنيف (ديناميكي)</span>}
             rules={[{ required: true, message: 'يرجى اختيار القسم' }]}
           >
-            <Select placeholder="اختر القسم..." size="large">
+            <Select
+              placeholder="اختر القسم..."
+              size="large"
+              notFoundContent={
+                isCategoriesError ? 'تعذر تحميل الأقسام من الخادم' : 'لا توجد أقسام متاحة'
+              }
+            >
               {categories.map((cat: any) => (
                 <Option key={cat.id} value={cat.id}>
                   {cat.name}

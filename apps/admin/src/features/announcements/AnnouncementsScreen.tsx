@@ -12,6 +12,7 @@ import {
   Popconfirm,
   Tooltip,
   message,
+  Alert,
 } from 'antd';
 import {
   SendOutlined,
@@ -23,6 +24,7 @@ import {
 } from '@ant-design/icons';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiClient } from '../../core/api/client';
+import { toArabicErrorMessage } from '../../core/api/errorMessage';
 import { queryKeys } from '../../core/queries/queryKeys';
 import { AnnouncementItem } from '../../core/types/audit.types';
 
@@ -38,38 +40,21 @@ export const AnnouncementsScreen: React.FC = () => {
   const [editingItem, setEditingItem] = useState<AnnouncementItem | null>(null);
 
   // Fetch Announcements
-  const { data, isLoading, refetch } = useQuery({
+  //
+  // SECURITY: no offline fallback. It used to invent two announcements attributed
+  // to the platform's administration, which a reader could not distinguish from
+  // real broadcasts that had actually gone out to users' phones.
+  const { data, isLoading, isError, error, refetch } = useQuery({
     queryKey: queryKeys.announcements.list(),
     queryFn: async () => {
-      try {
-        const res = await apiClient.get('/admin/announcements?page=1&limit=50');
-        const items = res.data?.data || res.data || [];
-        return {
-          items: items as AnnouncementItem[],
-        };
-      } catch {
-        // Fallback sample data if offline
-        return {
-          items: [
-            {
-              id: '1',
-              title: 'بدء التسجيل في دورة شرح العقيدة الطحاوية',
-              body: 'يسر إدارة منصة مجالس العلم الإعلان عن بدء التسجيل في دورة شرح العقيدة الطحاوية لفضيلة الشيخ علي الويسي.',
-              target: 'ALL',
-              createdAt: new Date().toISOString(),
-            },
-            {
-              id: '2',
-              title: 'تحديث تطبيق مجالس العلم للإصدار الجديد',
-              body: 'نرجو من جميع المتابعين تحديث التطبيق للاستفادة من تحسينات جودة البث الصوتي وتصفح الفتاوى.',
-              target: 'USERS',
-              createdAt: new Date(Date.now() - 86400000).toISOString(),
-            },
-          ] as AnnouncementItem[],
-        };
-      }
+      const res = await apiClient.get('/admin/announcements?page=1&limit=50');
+      const items = res.data?.data || res.data || [];
+      return {
+        items: items as AnnouncementItem[],
+      };
     },
     staleTime: 30000,
+    retry: 1,
   });
 
   // Create & Send Mutation
@@ -82,10 +67,10 @@ export const AnnouncementsScreen: React.FC = () => {
       form.resetFields();
       queryClient.invalidateQueries({ queryKey: queryKeys.announcements.all });
     },
-    onError: () => {
-      message.success('تم تسجيل الإعلان بنجاح.');
-      form.resetFields();
-      queryClient.invalidateQueries({ queryKey: queryKeys.announcements.all });
+    // SECURITY: never claim a broadcast was sent. The text stays in the form so
+    // the admin can retry instead of believing users were already notified.
+    onError: (err) => {
+      message.error(toArabicErrorMessage(err, 'تعذر بث الإعلان، لم يُرسل إلى أي مستخدم'));
     },
   });
 
@@ -98,9 +83,8 @@ export const AnnouncementsScreen: React.FC = () => {
       message.success('تم حذف الإعلان بنجاح.');
       queryClient.invalidateQueries({ queryKey: queryKeys.announcements.all });
     },
-    onError: () => {
-      message.success('تم حذف الإعلان.');
-      queryClient.invalidateQueries({ queryKey: queryKeys.announcements.all });
+    onError: (err) => {
+      message.error(toArabicErrorMessage(err, 'تعذر حذف الإعلان، ولا يزال منشوراً'));
     },
   });
 
@@ -115,11 +99,10 @@ export const AnnouncementsScreen: React.FC = () => {
       setEditingItem(null);
       queryClient.invalidateQueries({ queryKey: queryKeys.announcements.all });
     },
-    onError: () => {
-      message.success('تم حفظ التعديلات.');
-      setIsEditModalOpen(false);
-      setEditingItem(null);
-      queryClient.invalidateQueries({ queryKey: queryKeys.announcements.all });
+    // SECURITY: keep the modal and the edits open on failure — closing it while
+    // reporting success discarded the admin's work and hid the rejection.
+    onError: (err) => {
+      message.error(toArabicErrorMessage(err, 'تعذر حفظ التعديلات، لم يتغير الإعلان المنشور'));
     },
   });
 
@@ -257,6 +240,28 @@ export const AnnouncementsScreen: React.FC = () => {
         </Button>
       </div>
 
+      {/* Load Failure Banner — replaces the deleted sample-data fallback */}
+      {isError && (
+        <Alert
+          type="error"
+          showIcon
+          className="rounded-2xl font-cairo"
+          message={<span className="font-bold">تعذر تحميل سجل الإعلانات من الخادم</span>}
+          description={
+            <span className="text-xs">
+              {toArabicErrorMessage(error, 'تعذر جلب الإعلانات، يرجى المحاولة مرة أخرى')}
+              {' — '}
+              لا تُعرض إعلانات تجريبية حتى لا تُلتبس بإعلانات بُثَّت فعلاً للمستخدمين.
+            </span>
+          }
+          action={
+            <Button size="small" danger onClick={() => refetch()} className="font-cairo">
+              إعادة المحاولة
+            </Button>
+          }
+        />
+      )}
+
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Create & Broadcast Form */}
         <Card
@@ -328,7 +333,7 @@ export const AnnouncementsScreen: React.FC = () => {
           title={
             <div className="flex items-center gap-2 font-ruqaa font-bold text-lg text-gold-400">
               <UsergroupAddOutlined />
-              <span>سجل الإعلانات المرسلة ({data?.items?.length || 0})</span>
+              <span>سجل الإعلانات المرسلة ({isError ? '—' : data?.items?.length || 0})</span>
             </div>
           }
           className="rounded-2xl border border-gold-500/25 bg-mocha-900/80 shadow-xl lg:col-span-2 overflow-hidden"
@@ -338,6 +343,15 @@ export const AnnouncementsScreen: React.FC = () => {
             dataSource={data?.items || []}
             rowKey="id"
             loading={isLoading}
+            locale={{
+              emptyText: (
+                <span className="font-cairo text-cream-300 text-sm">
+                  {isError
+                    ? 'لا يمكن عرض الإعلانات لتعذر الاتصال بالخادم'
+                    : 'لم يُبَث أي إعلان بعد'}
+                </span>
+              ),
+            }}
             pagination={{ pageSize: 6 }}
             className="overflow-x-auto font-cairo"
           />

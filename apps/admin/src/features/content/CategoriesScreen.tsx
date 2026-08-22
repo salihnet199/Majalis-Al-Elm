@@ -11,6 +11,7 @@ import {
   Typography,
   message,
   Tooltip,
+  Alert,
 } from 'antd';
 import {
   PlusOutlined,
@@ -22,6 +23,7 @@ import {
 } from '@ant-design/icons';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiClient } from '../../core/api/client';
+import { toArabicErrorMessage } from '../../core/api/errorMessage';
 import { queryKeys } from '../../core/queries/queryKeys';
 
 const { Title, Text } = Typography;
@@ -44,31 +46,26 @@ export const CategoriesScreen: React.FC = () => {
   const [targetCategoryId, setTargetCategoryId] = useState<string | null>(null);
 
   // 1. Fetch Categories dynamically from API
-  const { data: categories = [], isLoading, refetch } = useQuery<CategoryItem[]>({
+  //
+  // SECURITY: no offline fallback. The five invented categories were especially
+  // harmful here: each carried a fake contentCount, and contentCount decides
+  // whether deletion goes through the reassignment modal or straight to DIRECT
+  // delete — so fabricated counts could route a real deletion down the wrong path.
+  const { data: categories = [], isLoading, isError, error, refetch } = useQuery<CategoryItem[]>({
     queryKey: queryKeys.content.categories(),
     queryFn: async () => {
-      try {
-        const res = await apiClient.get('/content/categories');
-        const items = res.data?.data || res.data || [];
-        return items.map((cat: any) => ({
-          id: cat.id || cat.slug,
-          slug: cat.slug,
-          name: cat.name || cat.translations?.[0]?.name || cat.slug,
-          contentCount: cat.contentCount || 0,
-          createdAt: cat.createdAt,
-        }));
-      } catch {
-        // Fallback default sample categories if offline / mock
-        return [
-          { id: '1', slug: 'fatwas', name: 'الفتاوى الشرعية', contentCount: 14 },
-          { id: '2', slug: 'lessons', name: 'الدروس العلمية والخطب', contentCount: 28 },
-          { id: '3', slug: 'articles', name: 'المقالات والبحوث', contentCount: 9 },
-          { id: '4', slug: 'audio', name: 'الصوتيات والدروس المسجلة', contentCount: 19 },
-          { id: '5', slug: 'sirah', name: 'السيرة النبوية والتاريخ', contentCount: 6 },
-        ];
-      }
+      const res = await apiClient.get('/content/categories');
+      const items = res.data?.data || res.data || [];
+      return items.map((cat: any) => ({
+        id: cat.id || cat.slug,
+        slug: cat.slug,
+        name: cat.name || cat.translations?.[0]?.name || cat.slug,
+        contentCount: cat.contentCount || 0,
+        createdAt: cat.createdAt,
+      }));
     },
     staleTime: 30000,
+    retry: 1,
   });
 
   // 2. Mutation: Create New Category
@@ -91,11 +88,11 @@ export const CategoriesScreen: React.FC = () => {
       setNewCategoryName('');
       queryClient.invalidateQueries({ queryKey: queryKeys.content.categories() });
     },
-    onError: () => {
-      // If endpoint doesn't exist yet, show optimistic success for offline demo
-      message.success(`تم تسجيل وإضافة القسم بنجاح.`);
-      setNewCategoryName('');
-      queryClient.invalidateQueries({ queryKey: queryKeys.content.categories() });
+    // SECURITY: the previous "optimistic success for offline demo" reported a
+    // created category and cleared the input, so the typed name was lost and the
+    // admin believed a section existed that the server had never accepted.
+    onError: (err) => {
+      message.error(toArabicErrorMessage(err, 'تعذر إضافة القسم، لم يُنشأ أي قسم على الخادم'));
     },
   });
 
@@ -121,11 +118,13 @@ export const CategoriesScreen: React.FC = () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.content.categories() });
       queryClient.invalidateQueries({ queryKey: queryKeys.content.all });
     },
-    onError: () => {
-      message.success('تم حذف القسم بنجاح.');
-      setIsDeletingModalOpen(false);
-      setSelectedCategoryForDelete(null);
-      queryClient.invalidateQueries({ queryKey: queryKeys.content.categories() });
+    // SECURITY: the modal stays open with the chosen reassignment so the admin can
+    // retry. Reporting a deletion that never happened also left the fate of the
+    // linked material unknown.
+    onError: (err) => {
+      message.error(
+        toArabicErrorMessage(err, 'تعذر حذف القسم، ولا يزال القسم ومحتوياته كما هما'),
+      );
     },
   });
 
@@ -240,6 +239,28 @@ export const CategoriesScreen: React.FC = () => {
         </Button>
       </div>
 
+      {/* Load Failure Banner — replaces the deleted sample-category fallback */}
+      {isError && (
+        <Alert
+          type="error"
+          showIcon
+          className="rounded-2xl font-cairo"
+          message={<span className="font-bold">تعذر تحميل الأقسام من الخادم</span>}
+          description={
+            <span className="text-xs">
+              {toArabicErrorMessage(error, 'تعذر جلب الأقسام، يرجى المحاولة مرة أخرى')}
+              {' — '}
+              لا تُعرض أقسام تجريبية، لأن عدد المواد المرتبط بها يحدد طريقة الحذف وقد يُعرّض المحتوى للخطر.
+            </span>
+          }
+          action={
+            <Button size="small" danger onClick={() => refetch()} className="font-cairo">
+              إعادة المحاولة
+            </Button>
+          }
+        />
+      )}
+
       {/* Simplified Fast Add Category Form */}
       <Card
         className="border border-gold-500/30 bg-mocha-900/90 backdrop-blur-md rounded-2xl shadow-lg"
@@ -276,7 +297,7 @@ export const CategoriesScreen: React.FC = () => {
         <div className="mb-4 flex items-center justify-between">
           <div className="font-bold text-cream-100 font-cairo text-base flex items-center gap-2">
             <FolderOpenOutlined className="text-gold-400" />
-            <span>الأقسام المتاحة حالياً ({categories.length})</span>
+            <span>الأقسام المتاحة حالياً ({isError ? '—' : categories.length})</span>
           </div>
         </div>
 
@@ -285,6 +306,15 @@ export const CategoriesScreen: React.FC = () => {
           dataSource={categories}
           rowKey="id"
           loading={isLoading}
+          locale={{
+            emptyText: (
+              <span className="font-cairo text-cream-300 text-sm">
+                {isError
+                  ? 'لا يمكن عرض الأقسام لتعذر الاتصال بالخادم'
+                  : 'لا توجد أقسام مسجَّلة بعد'}
+              </span>
+            ),
+          }}
           pagination={false}
           className="overflow-x-auto"
         />

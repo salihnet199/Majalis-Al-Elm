@@ -37,7 +37,8 @@ const { Option } = Select;
 
 export const UserListScreen: React.FC = () => {
   const queryClient = useQueryClient();
-  const { role: currentAdminRole } = useAuthStore();
+  const { user: currentAdmin } = useAuthStore();
+  const currentAdminId = currentAdmin?.id;
   const [search, setSearch] = useState('');
   const [roleFilter, setRoleFilter] = useState<Role | 'ALL'>('ALL');
   const [statusFilter, setStatusFilter] = useState<'ALL' | 'ACTIVE' | 'SUSPENDED'>('ALL');
@@ -185,7 +186,12 @@ export const UserListScreen: React.FC = () => {
       key: 'actions',
       width: 190,
       render: (_: unknown, record: UserProfile) => {
-        const isSelf = record.role === 'SuperAdmin' && currentAdminRole === 'SuperAdmin';
+        // Compare identities, not roles. The previous check
+        // (record.role === 'SuperAdmin' && currentAdminRole === 'SuperAdmin')
+        // matched every SuperAdmin row for any signed-in SuperAdmin, and matched
+        // nothing at all for an Admin — so it both blocked legitimate actions and
+        // failed to protect an Admin from suspending their own account.
+        const isSelf = !!currentAdminId && record.id === currentAdminId;
         return (
           <div className="flex items-center gap-2 font-cairo">
             {/* SuperAdmin Role Change */}
