@@ -1,0 +1,115 @@
+# Majlis Al-Alim Platform — Local Development Docker Compose
+#
+# Services:
+#   postgres  — PostgreSQL 16 with pg_uuidv7 + citext + pgcrypto (custom image)
+#   backend   — NestJS in development mode (ts-node, hot-reload)
+#   nginx     — Reverse proxy (mirrors production routing)
+#
+# Redis: NOT included in Phase 1 (YAGNI).
+#   ThrottlerModule uses in-memory storage in Phase 1 (app.module.ts: storage: undefined).
+#   Redis will be added in Phase 2 when rate-limit persistence across instances is needed.
+#
+# Usage:
+#   1. cp .env.example .env.local   (then fill in secrets)
+#   2. bash scripts/gen-jwt-keys.sh  (generates RS256 key pair in secrets/)
+#   3. docker-compose up
+#   4. docker-compose exec backend npx ts-node \
+#        apps/backend/src/scripts/migrate.ts  (or use psql directly)
+#
+# Swagger UI (dev only):  http://localhost/docs
+# API:                    http://localhost/api/v1
+# Health:                 http://localhost/api/v1/health
+
+version: '3.9'
+
+services:
+  # ── PostgreSQL 16 ──────────────────────────────────────────────────────────
+  # Custom image adds pg_uuidv7 extension (required for uuid_generate_v7()).
+  # See infra/docker/postgres/Dockerfile.
+  postgres:
+    build:
+      context: ./infra/docker/postgres
+      dockerfile: Dockerfile
+    image: majlis-alim/postgres:dev
+    container_name: majlis-alim-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${DATABASE_NAME:-majlisalim}
+      POSTGRES_USER: ${DATABASE_USER:-majlisalim}
+      POSTGRES_PASSWORD: ${DATABASE_PASSWORD:?DATABASE_PASSWORD is required in .env.local}
+    ports:
+      - '${DATABASE_PORT:-5432}:5432'
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      # Mount migrations for psql execution
+      - ./apps/backend/migrations:/docker-entrypoint-initdb.d/migrations:ro
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U ${DATABASE_USER:-majlisalim} -d ${DATABASE_NAME:-majlisalim}']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  # ── NestJS Backend ─────────────────────────────────────────────────────────
+  # Runs in development mode — ts-node with watch for hot-reload.
+  # Production: build the image with target=production from apps/backend/Dockerfile.
+  backend:
+    build:
+      context: .
+      dockerfile: apps/backend/Dockerfile
+      target: development
+    image: majlis-alim/backend:dev
+    container_name: majlis-alim-backend
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      NODE_ENV: development
+      PORT: 3000
+      DATABASE_HOST: postgres
+      DATABASE_PORT: 5432
+      DATABASE_NAME: ${DATABASE_NAME:-majlisalim}
+      DATABASE_USER: ${DATABASE_USER:-majlisalim}
+      DATABASE_PASSWORD: ${DATABASE_PASSWORD}
+      DATABASE_SSL: 'false'
+      JWT_PRIVATE_KEY_PATH: /run/secrets/jwt_private_key
+      JWT_PUBLIC_KEY_PATH: /run/secrets/jwt_public_key
+      JWT_ACCESS_TOKEN_TTL: ${JWT_ACCESS_TOKEN_TTL:-900}
+      JWT_REFRESH_TOKEN_TTL: ${JWT_REFRESH_TOKEN_TTL:-604800}
+      CORS_ORIGIN: ${CORS_ORIGIN:-http://localhost}
+      LOG_LEVEL: ${LOG_LEVEL:-debug}
+      THROTTLE_TTL: 60000
+      THROTTLE_LIMIT: 200
+    volumes:
+      # Source code (dev hot-reload)
+      - ./apps/backend/src:/app/apps/backend/src:ro
+      # JWT keys (Docker secrets workaround for local dev)
+      - ./secrets/jwt_private_key.pem:/run/secrets/jwt_private_key:ro
+      - ./secrets/jwt_public_key.pem:/run/secrets/jwt_public_key:ro
+    ports:
+      - '3000:3000'   # Direct access for debugging; normally go through nginx
+    healthcheck:
+      test: ['CMD-SHELL', 'wget -qO- http://localhost:3000/api/v1/health || exit 1']
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+
+  # ── Nginx Reverse Proxy ────────────────────────────────────────────────────
+  nginx:
+    image: nginx:1.27-alpine
+    container_name: majlis-alim-nginx
+    restart: unless-stopped
+    depends_on:
+      backend:
+        condition: service_healthy
+    ports:
+      - '80:80'
+    volumes:
+      - ./infra/docker/nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./infra/docker/nginx/conf.d:/etc/nginx/conf.d:ro
+
+volumes:
+  postgres_data:
+    name: majlis-alim-postgres-data

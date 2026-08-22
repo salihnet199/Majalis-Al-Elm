@@ -1,0 +1,82 @@
+# See https://docs.github.com/en/get-started/getting-started-with-git/ignoring-files for more about ignoring files.
+
+# compiled output
+dist
+tmp
+out-tsc
+
+# dependencies
+node_modules
+
+# IDEs and editors
+/.idea
+.project
+.classpath
+.c9/
+*.launch
+.settings/
+*.sublime-workspace
+
+# IDE - VSCode
+.vscode/*
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
+
+# misc
+/.sass-cache
+/connect.lock
+/coverage
+/libpeerconnection.log
+npm-debug.log
+yarn-error.log
+testem.log
+/typings
+
+# System Files
+.DS_Store
+Thumbs.db
+
+.nx/cache
+.nx/workspace-data
+.nx/migrate-runs
+.claude/worktrees
+.claude/settings.local.json
+
+# Local environment files — NEVER commit these
+.env.local
+.env.*.local
+
+# JWT keys and secrets — NEVER commit these
+secrets/
+*.pem
+
+# Firebase Credentials & Configs — NEVER commit these
+firebase-service-account*.json
+*firebase-adminsdk*.json
+google-services.json
+GoogleService-Info.plist
+*.p8
+*.p12
+
+# ── Flutter build artifacts ────────────────────────────────────────────────────
+# pubspec.lock is intentionally TRACKED (application repo, not a library)
+apps/mobile/build/
+apps/mobile/.dart_tool/
+apps/mobile/.flutter-plugins
+apps/mobile/.flutter-plugins-dependencies
+
+# Android local properties (contains machine-specific SDK paths)
+apps/mobile/android/local.properties
+
+# ── Admin React app build output ───────────────────────────────────────────────
+apps/admin/dist/
+apps/admin/.vite/
+
+# ── Error and debug logs ───────────────────────────────────────────────────────
+*.log
+error.log
+
+# ── Archive bundles (generated delivery zips — not source) ─────────────────────
+*.zip

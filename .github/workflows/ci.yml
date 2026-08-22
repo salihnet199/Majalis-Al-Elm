@@ -1,0 +1,84 @@
+name: CI — Lint · Type-Check · Test · Build
+
+on:
+  pull_request:
+    branches: [main, develop]
+  push:
+    branches: [develop]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  NODE_VERSION: '20.x'
+  NX_CLOUD_ACCESS_TOKEN: ''   # intentionally empty — no Nx Cloud in Phase 1
+
+jobs:
+  ci:
+    name: CI Pipeline
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_DB: alfajr_test
+          POSTGRES_USER: alfajr
+          POSTGRES_PASSWORD: test_password
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0   # needed for nx affected
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Set up Nx SHAs (for affected commands)
+        uses: nrwl/nx-set-shas@v4
+
+      # ── Lint ────────────────────────────────────────────────────────────────
+      - name: Lint (affected)
+        run: npx nx affected --target=lint --parallel=3
+
+      # ── Type Check ──────────────────────────────────────────────────────────
+      - name: Type Check (affected)
+        run: npx nx affected --target=type-check --parallel=3
+
+      # ── Unit Tests ──────────────────────────────────────────────────────────
+      - name: Unit Tests (affected)
+        run: npx nx affected --target=test --parallel=3 --ci --coverage
+        env:
+          DATABASE_HOST: localhost
+          DATABASE_PORT: 5432
+          DATABASE_NAME: alfajr_test
+          DATABASE_USER: alfajr
+          DATABASE_PASSWORD: test_password
+          JWT_ACCESS_TOKEN_TTL: 900
+          JWT_REFRESH_TOKEN_TTL: 604800
+
+      # ── Build ────────────────────────────────────────────────────────────────
+      - name: Build (affected)
+        run: npx nx affected --target=build --parallel=3
+
+      # ── Security Audit ───────────────────────────────────────────────────────
+      - name: npm audit (high severity)
+        run: npm audit --audit-level=high
+        continue-on-error: true   # warn only in Phase 1; make blocking in Phase 2

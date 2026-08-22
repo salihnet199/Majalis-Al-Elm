@@ -1,0 +1,211 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --bg-base: #1a120d;
+  --bg-surface: #231812;
+  --bg-card: #231812;
+  --bg-card-subtle: #2d1f18;
+  --border-gold: rgba(212, 175, 55, 0.3);
+  --text-primary: #fdfbf7;
+  --text-secondary: #c5b8a5;
+  --text-muted: #968978;
+  --header-from: #1a120d;
+  --header-to: #231812;
+  --nav-bg: rgba(35, 24, 18, 0.94);
+  --input-bg: #1a120d;
+}
+
+html.light, [data-theme='light'] {
+  --bg-base: #f7f3eb;
+  --bg-surface: #ffffff;
+  --bg-card: #ffffff;
+  --bg-card-subtle: #fcf9f2;
+  --border-gold: rgba(184, 147, 38, 0.35);
+  --text-primary: #2b1e17;
+  --text-secondary: #5c4335;
+  --text-muted: #8c7365;
+  --header-from: #f3eae0;
+  --header-to: #e8dccf;
+  --nav-bg: rgba(243, 234, 224, 0.96);
+  --input-bg: #ffffff;
+}
+
+@layer base {
+  body {
+    font-family: 'Cairo', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+    direction: rtl;
+    background-color: var(--bg-base);
+    color: var(--text-primary);
+    transition: background-color 0.25s ease, color 0.25s ease;
+  }
+}
+
+/* Custom Scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--bg-base);
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(212, 175, 55, 0.4);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(212, 175, 55, 0.7);
+}
+
+/* Ant Design Global Overrides in Light Mode */
+html.light .ant-card {
+  background: #ffffff !important;
+  border-color: rgba(184, 147, 38, 0.3) !important;
+  color: #2b1e17 !important;
+  box-shadow: 0 4px 20px rgba(74, 52, 42, 0.06) !important;
+}
+
+html.light .ant-card-head {
+  border-bottom-color: rgba(184, 147, 38, 0.2) !important;
+}
+
+html.light .ant-card-head-title {
+  color: #2b1e17 !important;
+}
+
+html.light .ant-table {
+  background: #ffffff !important;
+  color: #2b1e17 !important;
+}
+
+html.light .ant-table-thead > tr > th {
+  background: #f7f2ea !important;
+  color: #422f25 !important;
+  border-bottom: 1px solid rgba(184, 147, 38, 0.25) !important;
+}
+
+html.light .ant-table-tbody > tr > td {
+  border-bottom: 1px solid rgba(184, 147, 38, 0.12) !important;
+  color: #2b1e17 !important;
+}
+
+html.light .ant-table-wrapper .ant-table-tbody > tr.ant-table-row:hover > td {
+  background: #faf6ee !important;
+}
+
+html.light .ant-modal-content,
+html.light .ant-modal-header {
+  background: #ffffff !important;
+  color: #2b1e17 !important;
+}
+
+html.light .ant-modal-title {
+  color: #85610d !important;
+}
+
+html.light .ant-select-selector {
+  background-color: #ffffff !important;
+  border-color: rgba(184, 147, 38, 0.35) !important;
+  color: #2b1e17 !important;
+}
+
+html.light .ant-input,
+html.light .ant-input-affix-wrapper,
+html.light textarea.ant-input {
+  background-color: #ffffff !important;
+  border-color: rgba(184, 147, 38, 0.35) !important;
+  color: #2b1e17 !important;
+}
+
+html.light .ant-input::placeholder {
+  color: #a39284 !important;
+}
+
+html.light .ant-statistic-title {
+  color: #5c4335 !important;
+}
+
+html.light .ant-statistic-content {
+  color: #2b1e17 !important;
+}
+
+html.light .ant-tabs-tab {
+  color: #5c4335 !important;
+}
+
+html.light .ant-tabs-tab.ant-tabs-tab-active .ant-tabs-tab-btn {
+  color: #9c781d !important;
+}
+
+html.light .ant-tabs-ink-bar {
+  background: #9c781d !important;
+}
+
+/* Tailwind Palette Adaptations in Light Mode */
+html.light .bg-mocha-950 {
+  background-color: #ffffff !important;
+}
+
+html.light .bg-mocha-900 {
+  background-color: #ffffff !important;
+}
+
+html.light .bg-mocha-850 {
+  background-color: #f7f2ea !important;
+}
+
+html.light .bg-mocha-800 {
+  background-color: #f7f2ea !important;
+}
+
+html.light .bg-mocha-700 {
+  background-color: #ede2d3 !important;
+}
+
+html.light .bg-gradient-to-r.from-mocha-900 {
+  background-image: linear-gradient(to right, #fdfbf7, #f7f2ea, #fdfbf7) !important;
+}
+
+html.light .bg-gradient-to-b.from-mocha-900 {
+  background-image: linear-gradient(to bottom, #ffffff, #fdfbf7, #f7f2ea) !important;
+}
+
+html.light .text-cream-100 {
+  color: #2b1e17 !important;
+}
+
+html.light .text-cream-200 {
+  color: #3d2b1f !important;
+}
+
+html.light .text-cream-300 {
+  color: #5c4335 !important;
+}
+
+html.light .text-cream-400 {
+  color: #7d6555 !important;
+}
+
+html.light .text-mocha-400 {
+  color: #8a7364 !important;
+}
+
+html.light .border-gold-500\/30,
+html.light .border-gold-500\/25,
+html.light .border-gold-500\/20 {
+  border-color: rgba(184, 147, 38, 0.3) !important;
+}
+
+/* Gold Glowing Badges & Focus Effects */
+.gold-glow {
+  box-shadow: 0 0 20px rgba(212, 175, 55, 0.25);
+}
+
+.gold-border-glow {
+  border-color: rgba(212, 175, 55, 0.5);
+  box-shadow: 0 0 15px rgba(212, 175, 55, 0.15);
+}
