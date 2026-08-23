@@ -6,7 +6,9 @@ import {
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagger';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
+import { JwtPayload } from '../../identity/infrastructure/adapters/jwt-rs256.adapter';
 import { JwtAuthGuard } from '../../identity/presentation/guards/jwt-auth.guard';
+import { requireActorId } from './require-actor-id';
 import { RolesGuard } from './guards/roles.guard';
 import { Roles } from './decorators/roles.decorator';
 import {
@@ -54,7 +56,9 @@ export class AdminTaxonomyController {
   @Post('categories')
   @ApiOperation({ summary: 'Create category (Adjacency List)' })
   @ApiResponse({ status: 201, description: 'Category created' })
-  async createCategory(@Body() dto: CreateCategoryDto, @Req() req: any) {
+  async createCategory(@Body() dto: CreateCategoryDto, @Req() req: { user?: JwtPayload }) {
+    const userId = requireActorId(req);
+
     const exists = await this.categoryRepo.existsBySlug(dto.slug);
     if (exists) {
       throw new ConflictException({
@@ -63,7 +67,6 @@ export class AdminTaxonomyController {
       });
     }
 
-    const userId = req.user?.sub || '00000000-0000-7000-8000-000000000000';
     const id = UUIDv7.generate();
 
     const category = Category.create({
@@ -98,8 +101,10 @@ export class AdminTaxonomyController {
   async updateCategory(
     @Param('id') id: string,
     @Body() dto: UpdateCategoryDto,
-    @Req() req: any,
+    @Req() req: { user?: JwtPayload },
   ) {
+    const userId = requireActorId(req);
+
     const category = await this.categoryRepo.findById(id);
     if (!category) {
       throw new NotFoundException({
@@ -107,8 +112,6 @@ export class AdminTaxonomyController {
         message: `Category '${id}' not found`,
       });
     }
-
-    const userId = req.user?.sub || '00000000-0000-7000-8000-000000000000';
 
     category.update({
       parentId: dto.parentId,
@@ -210,7 +213,9 @@ export class AdminTaxonomyController {
   @Post('authors')
   @ApiOperation({ summary: 'Create author' })
   @ApiResponse({ status: 201, description: 'Author created' })
-  async createAuthor(@Body() dto: CreateAuthorDto, @Req() req: any) {
+  async createAuthor(@Body() dto: CreateAuthorDto, @Req() req: { user?: JwtPayload }) {
+    const userId = requireActorId(req);
+
     const exists = await this.authorRepo.existsBySlug(dto.slug);
     if (exists) {
       throw new ConflictException({
@@ -219,7 +224,6 @@ export class AdminTaxonomyController {
       });
     }
 
-    const userId = req.user?.sub || '00000000-0000-7000-8000-000000000000';
     const id = UUIDv7.generate();
 
     const author = Author.create({
@@ -259,8 +263,10 @@ export class AdminTaxonomyController {
   async updateAuthor(
     @Param('id') id: string,
     @Body() dto: UpdateAuthorDto,
-    @Req() req: any,
+    @Req() req: { user?: JwtPayload },
   ) {
+    const userId = requireActorId(req);
+
     const author = await this.authorRepo.findById(id);
     if (!author) {
       throw new NotFoundException({
@@ -268,8 +274,6 @@ export class AdminTaxonomyController {
         message: `Author '${id}' not found`,
       });
     }
-
-    const userId = req.user?.sub || '00000000-0000-7000-8000-000000000000';
 
     author.update({
       avatarUrl: dto.avatarUrl,
@@ -325,7 +329,9 @@ export class AdminTaxonomyController {
   @Post('tags')
   @ApiOperation({ summary: 'Create tag' })
   @ApiResponse({ status: 201, description: 'Tag created' })
-  async createTag(@Body() dto: CreateTagDto, @Req() req: any) {
+  async createTag(@Body() dto: CreateTagDto, @Req() req: { user?: JwtPayload }) {
+    const userId = requireActorId(req);
+
     const exists = await this.tagRepo.existsBySlug(dto.slug);
     if (exists) {
       throw new ConflictException({
@@ -334,7 +340,6 @@ export class AdminTaxonomyController {
       });
     }
 
-    const userId = req.user?.sub || '00000000-0000-7000-8000-000000000000';
     const id = UUIDv7.generate();
 
     const tag = Tag.create({ id, slug: dto.slug });

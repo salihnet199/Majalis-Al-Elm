@@ -41,28 +41,28 @@ for i in {1..30}; do
 done
 
 # ── 4. تشغيل كل الـ migrations بالترتيب ──────────────────────────────────
-MIGRATIONS=(
-  "000_bootstrap.sql"
-  "001_identity_users.sql"
-  "002_identity_roles.sql"
-  "003_identity_auth_tokens.sql"
-  "004_identity_oauth_otp.sql"
-  "010_content_types.sql"
-  "011_content_taxonomy.sql"
-  "012_content_media.sql"
-  "013_content_items.sql"
-  "014_content_translations.sql"
-  "020_engagement_types.sql"
-  "021_engagement_comments.sql"
-  "022_engagement_qa.sql"
-  "030_notifications_types.sql"
-  "031_notifications_devices.sql"
-  "032_notifications_preferences.sql"
-  "033_notifications_log.sql"
-  "040_admin_audit_log.sql"
-  "041_admin_system_config.sql"
-  "042_admin_analytics.sql"
-)
+#
+# القائمة تُقرأ من المجلد نفسه — لا مصفوفة مكتوبة يدوياً.
+#
+# The list used to be twenty hardcoded filenames ending at 042. When
+# 015_content_media_upload.sql (ADR-013 Stage A) was added, this script kept
+# printing "✅ ALL 20 MIGRATIONS PASSED" while never running it, and the dev
+# database stayed a migration behind until an integration test hit a missing
+# column. A script that reports a valid schema over a migration it never opened
+# is POLICY-SEC-001 category 4 (fabricated readiness).
+#
+# Prefixes are zero-padded to three digits, so lexicographic order is migration
+# order. Seeds are data, not schema, and are excluded by the pattern.
+MIGRATIONS=()
+while IFS= read -r file; do
+  MIGRATIONS+=("$(basename "$file")")
+done < <(find "$MIGRATIONS_DIR" -maxdepth 1 -type f -regex '.*/[0-9][0-9][0-9]_.*\.sql' | sort)
+
+if [ ${#MIGRATIONS[@]} -eq 0 ]; then
+  echo "❌ No migrations found in $MIGRATIONS_DIR — refusing to report a valid schema"
+  docker rm -f "$CONTAINER" >/dev/null 2>&1 || true
+  exit 1
+fi
 
 PASS=0
 FAIL=0
@@ -83,8 +83,13 @@ for migration in "${MIGRATIONS[@]}"; do
 
   # نسخ الملف إلى container ثم تشغيله
   docker cp "$FILEPATH" "$CONTAINER:/tmp/$migration"
-  OUTPUT=$(docker exec "$CONTAINER" psql -U "$USER" -d "$DB" -f "/tmp/$migration" 2>&1)
-  EXIT_CODE=$?
+  # `set -e` aborts on a failing command substitution, which would end the run
+  # before the "❌ FAILED" line below ever printed. `|| true` keeps the loop alive
+  # so every migration is attempted and the failing one is named.
+  # ON_ERROR_STOP makes psql exit non-zero on the FIRST bad statement instead of
+  # continuing through the file and returning 0.
+  OUTPUT=$(docker exec "$CONTAINER" psql -U "$USER" -d "$DB" -v ON_ERROR_STOP=1 \
+    -f "/tmp/$migration" 2>&1) && EXIT_CODE=0 || EXIT_CODE=$?
 
   if [ $EXIT_CODE -eq 0 ]; then
     echo "✅ OK"

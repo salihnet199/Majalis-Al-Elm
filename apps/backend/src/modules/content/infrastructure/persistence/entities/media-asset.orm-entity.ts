@@ -44,6 +44,38 @@ export class MediaAssetOrmEntity {
   @Column({ name: 'transcode_error', type: 'text', nullable: true })
   transcodeError!: string | null;
 
+  // ── Upload lifecycle (migration 015, ADR-013 Stage A) ──────────────────────
+  // Independent of transcode_status. The DB additionally enforces
+  // `upload_status <> 'UPLOADED' OR (verified_bytes, uploaded_at, sha256 all
+  // present)` via ct_media_uploaded_requires_verification, so a fabricated
+  // UPLOADED fails at the database even if it slipped past the application.
+
+  @Column({
+    name: 'upload_status',
+    type: 'enum',
+    enum: ['PENDING_UPLOAD', 'UPLOADED', 'ABORTED'],
+    enumName: 'ct_upload_status',
+    default: 'PENDING_UPLOAD',
+  })
+  uploadStatus!: string;
+
+  /** Hex SHA-256 declared by the client; also the object key's filename. */
+  @Column({ name: 'sha256', type: 'char', length: 64, nullable: true })
+  sha256!: string | null;
+
+  /** Size read back from storage via headObject. size_bytes is the claim. */
+  @Column({ name: 'verified_bytes', type: 'bigint', nullable: true })
+  verifiedBytes!: string | number | null;
+
+  @Column({ name: 'uploaded_at', type: 'timestamptz', nullable: true })
+  uploadedAt!: Date | null;
+
+  @Column({ name: 'multipart_upload_id', type: 'text', nullable: true })
+  multipartUploadId!: string | null;
+
+  @Column({ name: 'upload_error', type: 'text', nullable: true })
+  uploadError!: string | null;
+
   @Column({ name: 'uploaded_by', type: 'uuid' })
   uploadedBy!: string;
 

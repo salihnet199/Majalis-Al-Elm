@@ -12,6 +12,7 @@ import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import helmet from 'helmet';
 import { AppModule } from './app/app.module';
 import { assertJwtKeyIntegrity } from './shared/infrastructure/config/jwt-key-integrity';
+import { assertStorageIntegrity } from './shared/infrastructure/config/storage-integrity';
 import { GlobalExceptionFilter } from './shared/presentation/filters/global-exception.filter';
 import { TraceIdInterceptor } from './shared/presentation/interceptors/trace-id.interceptor';
 
@@ -24,6 +25,16 @@ async function bootstrap() {
   // the process exits — a server that cannot sign trustworthy tokens must not
   // serve traffic at all.
   assertJwtKeyIntegrity();
+
+  // ── Fail fast on unsafe object-storage configuration (ADR-013, TECH-DEBT-014) ──
+  // Same pattern, same reason. Joi has already checked that the S3_* variables
+  // exist and parse; this judges whether their VALUES are safe for the target
+  // environment — no MinIO factory credentials, no cleartext endpoint, no
+  // loopback host in production. Runs before the container so no component is
+  // ever built around a storage client that must not be used. The bucket's
+  // actual existence is proved separately by the HeadBucket probe in
+  // StorageModule, which no static check can substitute for.
+  assertStorageIntegrity();
 
   const app = await NestFactory.create(AppModule, {
     // Disable default NestJS logger in favour of pino (configured in AppModule)

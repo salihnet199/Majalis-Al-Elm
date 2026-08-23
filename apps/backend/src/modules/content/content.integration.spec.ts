@@ -11,14 +11,18 @@
  *  4. Public: GET /content/categories (flat tree structure)
  *  5. Public: GET /content/categories/:slug (category + direct children)
  *  6. Public: GET /content/tags (list all tags)
- *  7. Protected: GET /content/:slug/media/stream (requires JWT, returns stub key)
+ *  7. Protected: GET /content/:slug/media/stream (requires JWT, returns presigned URL)
  *  8. Protected: GET /content/:slug/media/stream (401 without JWT)
  *  9. Admin: POST /admin/content (creates DRAFT with translations & tags)
  * 10. Admin: Content workflow (DRAFT -> REVIEW -> PUBLISHED -> ARCHIVED)
  * 11. Admin: PATCH & DELETE /admin/content/:id (updates metadata, soft-delete)
  * 12. Admin: Taxonomy CRUD (Categories, Authors, Tags)
- * 13. Admin: Media upload stubs (initiate, complete, status)
+ * 13. Admin: Media upload — presigned initiate, storage-verified complete, status
  * 14. RBAC Guard: Editor/Admin allowed, regular User gets 403 FORBIDDEN on admin routes
+ *
+ * The upload path additionally has a dedicated adversarial suite —
+ * `media-upload.anti-fabrication.spec.ts` — covering every way `complete` can be
+ * called without a real upload behind it.
  */
 
 import { Test, TestingModule } from '@nestjs/testing';
@@ -26,7 +30,7 @@ import { INestApplication, ValidationPipe, CanActivate, ExecutionContext } from 
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 import request = require('supertest');
 import { getRepositoryToken } from '@nestjs/typeorm';
-import { randomUUID } from 'crypto';
+import { createHash, randomUUID } from 'crypto';
 import { PassportModule } from '@nestjs/passport';
 import { JwtModule } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
@@ -46,6 +50,9 @@ import { CATEGORY_REPOSITORY, ICategoryRepository } from './domain/ports/categor
 import { AUTHOR_REPOSITORY, IAuthorRepository } from './domain/ports/author.repository';
 import { TAG_REPOSITORY, ITagRepository } from './domain/ports/tag.repository';
 import { MEDIA_ASSET_REPOSITORY, IMediaAssetRepository } from './domain/ports/media-asset.repository';
+import { STORAGE_SERVICE } from './domain/ports/storage.service';
+import { MediaUploadService } from './application/services/media-upload.service';
+import { FakeStorageService } from './testing/fake-storage.service';
 
 import { ContentItem } from './domain/content-item.entity';
 import { Category } from './domain/category.entity';
@@ -78,6 +85,8 @@ describe('BC02 Content Module — Integration Tests', () => {
   let authorsStore: Author[] = [];
   let tagsStore: Tag[] = [];
   let mediaAssetsStore: MediaAsset[] = [];
+  // The storage side of the world, controlled independently of the API side.
+  const storage = new FakeStorageService();
   let translationsStore: TranslationOrmEntity[] = [];
 
   // Tokens for different roles
@@ -309,6 +318,8 @@ describe('BC02 Content Module — Integration Tests', () => {
         RolesGuard,
         JwtStrategy,
         JwtRs256Adapter,
+        MediaUploadService,
+        { provide: STORAGE_SERVICE, useValue: storage },
         { provide: ConfigService, useValue: mockConfigService },
         { provide: CONTENT_ITEM_REPOSITORY, useValue: mockContentItemRepo },
         { provide: CATEGORY_REPOSITORY, useValue: mockCategoryRepo },
@@ -348,6 +359,7 @@ describe('BC02 Content Module — Integration Tests', () => {
     tagsStore = [];
     mediaAssetsStore = [];
     translationsStore = [];
+    storage.reset();
   });
 
   // ── Scenario 1: Public GET /content ─────────────────────────────────────────
@@ -483,16 +495,21 @@ describe('BC02 Content Module — Integration Tests', () => {
   });
 
   // ── Scenario 7: Protected GET /content/:slug/media/stream with JWT ──────────
-  it('Scenario 7: Protected GET /content/:slug/media/stream returns media stream stub with valid JWT', async () => {
+  it('Scenario 7: Protected GET /content/:slug/media/stream returns a presigned URL with valid JWT', async () => {
     const mediaId = UUIDv7.generate();
+    const sha256 = 'a'.repeat(64);
     const media = MediaAsset.create({
       id: mediaId,
       originalName: 'khutbah.mp3',
-      storageKey: 'media/khutbah.mp3',
+      storageKey: `originals/${mediaId.value}/${sha256}.mp3`,
       mimeType: 'audio/mpeg',
       sizeBytes: 15000000,
+      sha256,
       uploadedBy: randomUUID(),
     });
+    // Only a verified asset may be streamed, so the fixture goes through the
+    // same confirmation the API requires — there is no setter that skips it.
+    media.confirmUpload({ verifiedBytes: 15000000, verifiedAt: new Date() });
     mediaAssetsStore.push(media);
 
     const item = ContentItem.create({
@@ -511,8 +528,51 @@ describe('BC02 Content Module — Integration Tests', () => {
       .set('Authorization', `Bearer ${userToken}`)
       .expect(200);
 
-    expect(res.body.data.storageKey).toBe('media/khutbah.mp3');
+    // API-002: a time-limited URL, not a permanent one.
+    expect(res.body.data.url).toContain(media.storageKey);
+    expect(res.body.data.expiresInSeconds).toBe(3600);
+    expect(new Date(res.body.data.expiresAt).getTime()).toBeGreaterThan(Date.now());
     expect(res.body.data.mimeType).toBe('audio/mpeg');
+    // The internal bucket path must not leak: clients get signed URLs, never keys.
+    expect(res.body.data.storageKey).toBeUndefined();
+  });
+
+  // ── Scenario 7b: streaming an unverified asset is refused ───────────────────
+  it('Scenario 7b: GET /content/:slug/media/stream returns 409 when the media has no verified file', async () => {
+    const mediaId = UUIDv7.generate();
+    const sha256 = 'b'.repeat(64);
+    // PENDING_UPLOAD — created by initiate, never confirmed against storage.
+    mediaAssetsStore.push(
+      MediaAsset.create({
+        id: mediaId,
+        originalName: 'never-arrived.mp3',
+        storageKey: `originals/${mediaId.value}/${sha256}.mp3`,
+        mimeType: 'audio/mpeg',
+        sizeBytes: 15000000,
+        sha256,
+        uploadedBy: randomUUID(),
+      }),
+    );
+
+    const item = ContentItem.create({
+      id: UUIDv7.generate(),
+      slug: 'pending-khutbah',
+      type: 'AUDIO',
+      mediaAssetId: mediaId.value,
+      createdBy: randomUUID(),
+    });
+    item.submitForReview();
+    item.publish();
+    contentItemsStore.push(item);
+
+    const res = await request(app.getHttpServer())
+      .get('/content/pending-khutbah/media/stream')
+      .set('Authorization', `Bearer ${userToken}`)
+      .expect(409);
+
+    expect(res.body.error.code).toBe('MEDIA_NOT_AVAILABLE');
+    // No URL is handed out for a file that is not there.
+    expect(res.body.data).toBeUndefined();
   });
 
   // ── Scenario 8: Protected GET /content/:slug/media/stream 401 without JWT ───
@@ -650,36 +710,93 @@ describe('BC02 Content Module — Integration Tests', () => {
     expect(tagRes.body.data.slug).toBe('faraid');
   });
 
-  // ── Scenario 13: Admin Media Upload Stubs ───────────────────────────────────
-  it('Scenario 13: Admin Media upload stubs handle initiate, complete, and status query', async () => {
-    // 1. Initiate
+  // ── Scenario 13: Admin media upload — the real presigned flow ───────────────
+  it('Scenario 13: Admin media upload issues a presigned URL and marks UPLOADED only after storage confirms the object', async () => {
+    // The bytes the editor is about to upload, and their digest — computed here
+    // the way the browser computes it with crypto.subtle before calling initiate.
+    const body = Buffer.from('ID3 payload standing in for a lesson recording', 'utf8');
+    const sha256 = createHash('sha256').update(body).digest('hex');
+
+    // ── 1. Initiate: the response is a credential to upload, not a confirmation.
     const initRes = await request(app.getHttpServer())
       .post('/admin/media/upload/initiate')
       .set('Authorization', `Bearer ${editorToken}`)
       .send({
         fileName: 'lesson-audio.mp3',
         mimeType: 'audio/mpeg',
-        sizeBytes: 25000000,
+        sizeBytes: body.length,
+        sha256,
       })
       .expect(200);
-    const uploadId = initRes.body.data.uploadId;
-    expect(uploadId).toBeDefined();
 
-    // 2. Complete
+    const { uploadId, mode, uploadUrl, requiredHeaders, storageKey, expiresAt } = initRes.body.data;
+    expect(uploadId).toBeDefined();
+    expect(mode).toBe('SINGLE'); // well under MAX_SINGLE_PUT_BYTES
+    expect(uploadUrl).toContain(storageKey);
+    // ADR-013 §2: the key is server-built and content-addressed. The client's
+    // filename does not appear in it — the stub interpolated it directly.
+    expect(storageKey).toBe(`originals/${uploadId}/${sha256}.mp3`);
+    expect(storageKey).not.toContain('lesson-audio');
+    // These headers are inside the signature; the client must echo them verbatim.
+    expect(requiredHeaders['Content-Type']).toBe('audio/mpeg');
+    expect(requiredHeaders['Content-Length']).toBe(String(body.length));
+    expect(new Date(expiresAt).getTime()).toBeGreaterThan(Date.now());
+
+    // Nothing has been uploaded yet, and the row says exactly that.
+    const pendingRes = await request(app.getHttpServer())
+      .get(`/admin/media/${uploadId}/status`)
+      .set('Authorization', `Bearer ${editorToken}`)
+      .expect(200);
+    expect(pendingRes.body.data.uploadStatus).toBe('PENDING_UPLOAD');
+    expect(pendingRes.body.data.verifiedBytes).toBeNull();
+    expect(pendingRes.body.data.uploadedAt).toBeNull();
+
+    // ── 2. The client PUTs the bytes straight to storage (never through NestJS).
+    storage.putObject(storageKey, body, 'audio/mpeg');
+
+    // ── 3. Complete: this is the only place the verdict comes from storage.
     const compRes = await request(app.getHttpServer())
       .post('/admin/media/upload/complete')
       .set('Authorization', `Bearer ${editorToken}`)
       .send({ uploadId })
       .expect(200);
-    expect(compRes.body.data.transcodeStatus).toBe('DONE');
 
-    // 3. Status
+    expect(storage.calls).toContain(`head:${storageKey}`);
+    expect(compRes.body.data.uploadStatus).toBe('UPLOADED');
+    expect(compRes.body.data.verifiedBytes).toBe(body.length);
+    expect(compRes.body.data.alreadyComplete).toBe(false);
+    // The binding rule: ADR-013 Stage B is not implemented, so nothing here
+    // claims a transcode ran. The stub asserted 'DONE' at this exact line.
+    expect(compRes.body.data.transcodeStatus).toBe('PENDING');
+    expect(compRes.body.data.transcodeNote).toContain('not yet');
+
+    // ── 4. Status reports declared and verified sizes separately, and never
+    //      leaks the bucket path.
     const statusRes = await request(app.getHttpServer())
       .get(`/admin/media/${uploadId}/status`)
       .set('Authorization', `Bearer ${editorToken}`)
       .expect(200);
-    expect(statusRes.body.data.transcodeStatus).toBe('DONE');
     expect(statusRes.body.data.originalName).toBe('lesson-audio.mp3');
+    expect(statusRes.body.data.uploadStatus).toBe('UPLOADED');
+    expect(statusRes.body.data.sizeBytes).toBe(body.length);
+    expect(statusRes.body.data.verifiedBytes).toBe(body.length);
+    expect(statusRes.body.data.sha256).toBe(sha256);
+    expect(statusRes.body.data.uploadedAt).not.toBeNull();
+    expect(statusRes.body.data.transcodeStatus).toBe('PENDING');
+    expect(statusRes.body.data.storageKey).toBeUndefined();
+
+    // ── 5. A retried complete (double click, flaky network) is idempotent: it
+    //      reports the state already verified instead of erroring or re-checking.
+    const headCallsBefore = storage.calls.filter((c) => c === `head:${storageKey}`).length;
+    const retryRes = await request(app.getHttpServer())
+      .post('/admin/media/upload/complete')
+      .set('Authorization', `Bearer ${editorToken}`)
+      .send({ uploadId })
+      .expect(200);
+    expect(retryRes.body.data.alreadyComplete).toBe(true);
+    expect(retryRes.body.data.uploadStatus).toBe('UPLOADED');
+    expect(retryRes.body.data.transcodeStatus).toBe('PENDING');
+    expect(storage.calls.filter((c) => c === `head:${storageKey}`).length).toBe(headCallsBefore);
   });
 
   // ── Scenario 14: RBAC Guard Enforcement ────────────────────────────────────

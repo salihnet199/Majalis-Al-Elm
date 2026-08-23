@@ -10,7 +10,14 @@ export const queryKeys = {
     list: (params?: Record<string, unknown>) => [...queryKeys.content.lists(), params] as const,
     details: () => [...queryKeys.content.all, 'detail'] as const,
     detail: (idOrSlug: string) => [...queryKeys.content.details(), idOrSlug] as const,
+    /**
+     * The admin-shaped read of one item (GET /admin/content/:id). Kept distinct
+     * from detail() because that one is the public, PUBLISHED-only projection —
+     * caching them under one key would let a reader's row answer an editor's read.
+     */
+    adminDetail: (id: string) => [...queryKeys.content.details(), 'admin', id] as const,
     categories: () => [...queryKeys.content.all, 'categories'] as const,
+    authors: () => [...queryKeys.content.all, 'authors'] as const,
     tags: () => [...queryKeys.content.all, 'tags'] as const,
   },
   users: {

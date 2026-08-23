@@ -39,6 +39,18 @@ const DB_ENV = {
   DATABASE_PASSWORD: 'irrelevant-for-these-tests',
 };
 
+// validateConfig also requires object storage outside NODE_ENV=test (ADR-013).
+// The cases below that assert a config is ACCEPTED must therefore supply it, or
+// they would pass/fail for a reason unrelated to JWT. Storage-specific rules are
+// covered in storage-integrity.spec.ts.
+const S3_ENV = {
+  S3_ENDPOINT: 'https://example-account.r2.cloudflarestorage.com',
+  S3_ACCESS_KEY: 'irrelevant-for-these-tests',
+  S3_SECRET_KEY: 'irrelevant-for-these-tests-32-chars',
+  S3_BUCKET_NAME: 'majalis-elm-media',
+  S3_REGION: 'auto',
+};
+
 let fixtureDir: string;
 let sentinelKeyFile: string;
 
@@ -198,6 +210,7 @@ describe('layer 1 — validateConfig() Joi rule requires a real key pair outside
     expect(() =>
       validateConfig({
         ...DB_ENV,
+        ...S3_ENV,
         NODE_ENV: 'production',
         JWT_PRIVATE_KEY: REAL_PRIVATE_PEM,
         JWT_PUBLIC_KEY: REAL_PUBLIC_PEM,
@@ -209,6 +222,7 @@ describe('layer 1 — validateConfig() Joi rule requires a real key pair outside
     expect(() =>
       validateConfig({
         ...DB_ENV,
+        ...S3_ENV,
         NODE_ENV: 'production',
         JWT_PRIVATE_KEY_PATH: '/run/secrets/jwt_private.pem',
         JWT_PUBLIC_KEY_PATH: '/run/secrets/jwt_public.pem',

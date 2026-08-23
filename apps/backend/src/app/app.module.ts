@@ -11,12 +11,14 @@ import { EngagementModule } from '../modules/engagement/engagement.module';
 import { NotificationsModule } from '../modules/notifications/notifications.module';
 import { AdminModule } from '../modules/admin/admin.module';
 import { HealthController } from '../shared/infrastructure/health/health.controller';
+import { StorageModule } from '../shared/infrastructure/storage/storage.module';
 import {
   appConfig,
   databaseConfig,
   jwtConfig,
   throttleConfig,
   logConfig,
+  s3Config,
   validateConfig,
 } from '../shared/infrastructure/config/app.config';
 
@@ -26,7 +28,7 @@ import {
     ConfigModule.forRoot({
       isGlobal: true,
       envFilePath: ['.env.local', '.env'],
-      load: [appConfig, databaseConfig, jwtConfig, throttleConfig, logConfig],
+      load: [appConfig, databaseConfig, jwtConfig, throttleConfig, logConfig, s3Config],
       validate: validateConfig,
     }),
 
@@ -77,6 +79,12 @@ import {
     // ── Health Checks (ADR-011: /health + /ready) ─────────────────────────────
     TerminusModule,
     HttpModule,
+
+    // ── Object Storage (ADR-013: S3-compatible, vendor by env var) ────────────
+    // @Global, and it probes the bucket at boot: the process does not start if
+    // storage is unreachable. Imported before the BC modules so that failure
+    // surfaces before anything is wired around it.
+    StorageModule,
 
     // ── Bounded Context Modules ───────────────────────────────────────────────
     // BC01: Identity & Access (Phase 1 — Email Auth implemented)

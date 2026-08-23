@@ -81,6 +81,22 @@
         "passWithNoTests": true
       }
     },
+    "test-storage": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "npx jest --config jest.storage-integration.config.cts --runInBand",
+        "cwd": "apps/backend"
+      },
+      "cache": false
+    },
+    "test-db": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "npx jest --config jest.db-integration.config.cts --runInBand",
+        "cwd": "apps/backend"
+      },
+      "cache": false
+    },
     "type-check": {
       "executor": "nx:run-commands",
       "options": {

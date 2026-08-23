@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Table, Card, Button, Input, Select, Tag, Space, Typography, Popconfirm, message, Tooltip } from 'antd';
+import { Table, Card, Button, Input, Select, Tag, Space, Typography, Popconfirm, message, Tooltip, Alert } from 'antd';
 import {
   PlusOutlined,
   SearchOutlined,
@@ -12,12 +12,30 @@ import {
 } from '@ant-design/icons';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiClient } from '../../core/api/client';
+import { toArabicErrorMessage } from '../../core/api/errorMessage';
 import { queryKeys } from '../../core/queries/queryKeys';
-import { ContentItem, ContentType, ContentStatus } from '../../core/types/content.types';
+import { AdminContentRow, ContentType, ContentStatus } from '../../core/types/content.types';
 import { ContentModal } from './ContentModal';
 
 const { Title, Text } = Typography;
 const { Option } = Select;
+
+/**
+ * The editor's content list.
+ *
+ * It reads `GET /admin/content` — the admin projection. It used to read `GET
+ * /content`, the public catalogue, which meant drafts were invisible, `total` was
+ * always 0 above a table with rows in it, and the search box and status filter
+ * were sent to an endpoint that does not accept them. See the comment on
+ * AdminContentController.listContent for the full account.
+ */
+
+const STATUS_META: Record<ContentStatus, { color: string; label: string }> = {
+  DRAFT: { color: 'warning', label: 'مسودة' },
+  REVIEW: { color: 'processing', label: 'قيد المراجعة' },
+  PUBLISHED: { color: 'success', label: 'منشور' },
+  ARCHIVED: { color: 'default', label: 'مؤرشف' },
+};
 
 export const ContentListScreen: React.FC = () => {
   const queryClient = useQueryClient();
@@ -27,10 +45,10 @@ export const ContentListScreen: React.FC = () => {
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [editingItem, setEditingItem] = useState<ContentItem | null>(null);
+  const [editingItem, setEditingItem] = useState<AdminContentRow | null>(null);
 
   // TanStack Query: Content list with server-side pagination & filter
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, isError, error } = useQuery({
     queryKey: queryKeys.content.list({ search, type: typeFilter, status: statusFilter, page: currentPage, limit: pageSize }),
     queryFn: async () => {
       const params = new URLSearchParams();
@@ -40,26 +58,31 @@ export const ContentListScreen: React.FC = () => {
       params.append('page', currentPage.toString());
       params.append('limit', pageSize.toString());
 
-      const res = await apiClient.get(`/content?${params.toString()}`);
+      const res = await apiClient.get(`/admin/content?${params.toString()}`);
       return {
-        items: (res.data?.data || res.data || []) as ContentItem[],
-        total: res.data?.meta?.total || 0,
+        items: (res.data?.data ?? []) as AdminContentRow[],
+        // No `?? items.length` fallback: a missing total is a contract change, and
+        // inventing one from the current page makes a 12-page list look like one.
+        total: res.data?.meta?.total ?? 0,
       };
     },
     staleTime: 30000,
+    retry: 1,
   });
 
   // TanStack Mutation: Delete Content
   const deleteMutation = useMutation({
-    mutationFn: async (slug: string) => {
-      await apiClient.delete(`/admin/content/${slug}`);
+    mutationFn: async (id: string) => {
+      // By id. `DELETE /admin/content/:id` was being called with the slug, so it
+      // answered 404 for every row and the error toast blamed permissions.
+      await apiClient.delete(`/admin/content/${id}`);
     },
     onSuccess: () => {
       message.success('تم حذف المحتوى بنجاح');
       queryClient.invalidateQueries({ queryKey: queryKeys.content.all });
     },
-    onError: () => {
-      message.error('تعذر حذف المحتوى. تأكد من امتلاك الصلاحيات المناسبة.');
+    onError: (err) => {
+      message.error(toArabicErrorMessage(err, 'تعذر حذف المحتوى'));
     },
   });
 
@@ -68,9 +91,13 @@ export const ContentListScreen: React.FC = () => {
       title: 'العنوان',
       dataIndex: 'title',
       key: 'title',
-      render: (title: string, record: ContentItem) => (
+      render: (title: string | null, record: AdminContentRow) => (
         <div>
-          <div className="font-bold text-slate-100">{title}</div>
+          {title ? (
+            <div className="font-bold text-slate-100">{title}</div>
+          ) : (
+            <div className="font-bold text-amber-400">— بلا عنوان في هذه اللغة —</div>
+          )}
           <div className="text-xs text-slate-400 font-mono">slug: {record.slug}</div>
         </div>
       ),
@@ -99,29 +126,40 @@ export const ContentListScreen: React.FC = () => {
       title: 'الحالة',
       dataIndex: 'status',
       key: 'status',
-      width: 110,
-      render: (status: ContentStatus) => (
-        <Tag color={status === 'PUBLISHED' ? 'success' : status === 'DRAFT' ? 'warning' : 'default'}>
-          {status === 'PUBLISHED' ? 'منشور' : status === 'DRAFT' ? 'مسودة' : 'مؤرشف'}
-        </Tag>
-      ),
+      width: 120,
+      render: (status: ContentStatus) => {
+        // An unknown status is shown verbatim rather than folded into "مؤرشف":
+        // mislabelling a state is how REVIEW items were reported as archived.
+        const meta = STATUS_META[status] ?? { color: 'default', label: status };
+        return <Tag color={meta.color}>{meta.label}</Tag>;
+      },
     },
     {
-      title: 'المشاهدات / التنزيلات',
+      title: 'الملف',
+      key: 'media',
+      width: 110,
+      render: (_: unknown, record: AdminContentRow) =>
+        record.type === 'TEXT' ? (
+          <Text type="secondary" className="text-xs">—</Text>
+        ) : record.mediaAssetId ? (
+          <Tag color="cyan" className="font-medium">مرتبط</Tag>
+        ) : (
+          <Tag color="warning" className="font-medium">بلا ملف</Tag>
+        ),
+    },
+    {
+      title: 'المشاهدات',
       key: 'stats',
-      width: 160,
-      render: (_: unknown, record: ContentItem) => (
-        <div className="text-xs space-y-1 font-mono">
-          <div className="text-slate-300">👁️ {record.viewCount || 0} مشاهدة</div>
-          <div className="text-slate-400">📥 {record.downloadCount || 0} تنزيل</div>
-        </div>
+      width: 120,
+      render: (_: unknown, record: AdminContentRow) => (
+        <div className="text-xs font-mono text-slate-300">👁️ {record.viewCount || 0} مشاهدة</div>
       ),
     },
     {
       title: 'الإجراءات',
       key: 'actions',
       width: 120,
-      render: (_: unknown, record: ContentItem) => (
+      render: (_: unknown, record: AdminContentRow) => (
         <Space direction="horizontal" size="small">
           <Tooltip title="تعديل">
             <Button
@@ -139,7 +177,7 @@ export const ContentListScreen: React.FC = () => {
             okText="نعم، احذف"
             cancelText="إلغاء"
             okButtonProps={{ danger: true }}
-            onConfirm={() => deleteMutation.mutate(record.slug)}
+            onConfirm={() => deleteMutation.mutate(record.id)}
           >
             <Tooltip title="حذف">
               <Button type="text" danger icon={<DeleteOutlined />} />
@@ -175,6 +213,22 @@ export const ContentListScreen: React.FC = () => {
         </Button>
       </div>
 
+      {/* A failed list read must not look like an empty library. */}
+      {isError && (
+        <Alert
+          type="error"
+          showIcon
+          className="rounded-xl font-cairo"
+          message={<span className="font-bold text-xs">تعذر تحميل قائمة المحتوى من الخادم</span>}
+          description={
+            <span className="text-xs">
+              {toArabicErrorMessage(error, 'تعذر جلب قائمة المحتوى')} — لا تُعرض مواد تجريبية،
+              والجدول أدناه فارغ لأن القائمة لم تُقرأ، لا لأن المنصة بلا محتوى.
+            </span>
+          }
+        />
+      )}
+
       {/* Filters Bar */}
       <Card className="rounded-xl border border-slate-700/60 shadow-sm">
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
@@ -182,13 +236,19 @@ export const ContentListScreen: React.FC = () => {
             placeholder="البحث بالعنوان أو الرابط المعرف (Slug)..."
             prefix={<SearchOutlined className="text-slate-500" />}
             value={search}
-            onChange={(e) => setSearch(e.target.value)}
+            onChange={(e) => {
+              setSearch(e.target.value);
+              setCurrentPage(1);
+            }}
             allowClear
             className="rounded-lg"
           />
           <Select
             value={typeFilter}
-            onChange={(val) => setTypeFilter(val)}
+            onChange={(val) => {
+              setTypeFilter(val);
+              setCurrentPage(1);
+            }}
             className="w-full rounded-lg"
           >
             <Option value="ALL">جميع الأنواع</Option>
@@ -199,12 +259,16 @@ export const ContentListScreen: React.FC = () => {
           </Select>
           <Select
             value={statusFilter}
-            onChange={(val) => setStatusFilter(val)}
+            onChange={(val) => {
+              setStatusFilter(val);
+              setCurrentPage(1);
+            }}
             className="w-full rounded-lg"
           >
             <Option value="ALL">جميع الحالات</Option>
-            <Option value="PUBLISHED">منشور</Option>
             <Option value="DRAFT">مسودة</Option>
+            <Option value="REVIEW">قيد المراجعة</Option>
+            <Option value="PUBLISHED">منشور</Option>
             <Option value="ARCHIVED">مؤرشف</Option>
           </Select>
         </div>
@@ -227,8 +291,13 @@ export const ContentListScreen: React.FC = () => {
             },
             showSizeChanger: true,
             pageSizeOptions: ['10', '20', '50'],
+            showTotal: (total) => `${total} مادة`,
           }}
-          locale={{ emptyText: 'لا يوجد محتوى يطابق خيارات البحث' }}
+          locale={{
+            emptyText: isError
+              ? 'لم تُقرأ القائمة من الخادم — راجع رسالة الخطأ أعلاه'
+              : 'لا يوجد محتوى يطابق خيارات البحث',
+          }}
         />
       </Card>
 

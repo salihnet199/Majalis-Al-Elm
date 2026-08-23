@@ -53,7 +53,15 @@ export class GlobalExceptionFilter implements ExceptionFilter {
         const resp = exceptionResponse as Record<string, unknown>;
         errorCode = (resp['code'] as string) ?? this.statusToCode(statusCode);
         message = (resp['message'] as string) ?? exception.message;
-        details = Array.isArray(resp['details']) ? resp['details'] : [];
+        // The wire shape keeps `details` an array. A single object is wrapped
+        // rather than dropped: silently discarding the diagnostic an exception
+        // deliberately attached (e.g. declared vs. verified byte counts on a
+        // rejected upload) leaves the client with no way to explain the failure.
+        details = Array.isArray(resp['details'])
+          ? resp['details']
+          : resp['details'] != null
+            ? [resp['details']]
+            : [];
       }
     } else if (exception instanceof Error) {
       // Domain errors — log with full stack in server, never expose to client

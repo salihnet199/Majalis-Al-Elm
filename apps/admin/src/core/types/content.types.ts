@@ -1,5 +1,34 @@
 export type ContentType = 'AUDIO' | 'PDF' | 'TEXT' | 'IMAGE';
-export type ContentStatus = 'DRAFT' | 'PUBLISHED' | 'ARCHIVED';
+/**
+ * REVIEW is part of the server's state machine (DRAFT → REVIEW → PUBLISHED →
+ * ARCHIVED). It was missing from this union, so an item awaiting review fell
+ * through every `status === ...` chain in the UI and was labelled "مؤرشف".
+ */
+export type ContentStatus = 'DRAFT' | 'REVIEW' | 'PUBLISHED' | 'ARCHIVED';
+
+/**
+ * One row of `GET /admin/content` — the admin projection, not the public one.
+ *
+ * `title` is nullable on purpose: an item can exist with no title translation in
+ * the requested locale, and the list says so rather than showing the slug in the
+ * title column.
+ */
+export interface AdminContentRow {
+  id: string;
+  slug: string;
+  type: ContentType;
+  status: ContentStatus;
+  primaryLocale: string;
+  title: string | null;
+  categoryId: string | null;
+  authorId: string | null;
+  mediaAssetId: string | null;
+  viewCount: number;
+  isFeatured: boolean;
+  publishedAt: string | null;
+  updatedAt: string;
+  createdAt: string;
+}
 
 export interface ContentTranslation {
   id?: string;

@@ -1,9 +1,10 @@
 # Majalis Al-Elm Platform — Local Development Docker Compose
 #
 # Services:
-#   postgres  — PostgreSQL 16 with pg_uuidv7 + citext + pgcrypto (custom image)
-#   backend   — NestJS in development mode (ts-node, hot-reload)
-#   nginx     — Reverse proxy (mirrors production routing)
+#   postgres    — PostgreSQL 16 with pg_uuidv7 + citext + pgcrypto (custom image)
+#   minio       — S3-compatible object storage (ADR-013 local vendor)
+#   backend     — NestJS in development mode (ts-node, hot-reload)
+#   nginx       — Reverse proxy (mirrors production routing)
 #
 # Redis: NOT included in Phase 1 (YAGNI).
 #   ThrottlerModule uses in-memory storage in Phase 1 (app.module.ts: storage: undefined).
@@ -12,15 +13,19 @@
 # Usage:
 #   1. cp .env.example .env.local   (then fill in secrets)
 #   2. bash scripts/gen-jwt-keys.sh  (generates RS256 key pair in secrets/)
-#   3. docker-compose up
-#   4. docker-compose exec backend npx ts-node \
+#   3. docker compose --env-file .env.local up -d postgres minio
+#   4. node scripts/ensure-media-bucket.mjs   (creates the media bucket — ADR-013)
+#   5. docker compose --env-file .env.local up
+#   6. docker compose exec backend npx ts-node \
 #        apps/backend/src/scripts/migrate.ts  (or use psql directly)
+#
+# Step 4 is not optional: the backend refuses to start when the bucket is
+# unreachable (ADR-013 — there is no degraded "no uploads" mode).
 #
 # Swagger UI (dev only):  http://localhost/docs
 # API:                    http://localhost/api/v1
 # Health:                 http://localhost/api/v1/health
-
-version: '3.9'
+# MinIO console:          http://localhost:9001  (S3_ACCESS_KEY / S3_SECRET_KEY)
 
 services:
   # ── PostgreSQL 16 ──────────────────────────────────────────────────────────
@@ -50,6 +55,54 @@ services:
       retries: 5
       start_period: 10s
 
+  # ── MinIO — S3-compatible object storage (ADR-013) ─────────────────────────
+  # The local stand-in for Cloudflare R2. Both speak the same S3 API, so the
+  # vendor swap before deployment is an .env change with no code edit — the only
+  # file that knows an SDK exists is s3-storage.adapter.ts.
+  #
+  # Root credentials are the same variables the backend uses, so there is a
+  # single source of truth: a mismatch would fail the HeadBucket probe at boot
+  # rather than surface as a 403 on the first upload.
+  minio:
+    image: minio/minio:latest
+    container_name: majalis-elm-minio
+    restart: unless-stopped
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: ${S3_ACCESS_KEY:?S3_ACCESS_KEY is required in .env.local}
+      MINIO_ROOT_PASSWORD: ${S3_SECRET_KEY:?S3_SECRET_KEY is required in .env.local}
+      # Presigned PUT from the admin browser is a cross-origin request, and the
+      # signed request carries Content-Type, Content-Length and
+      # x-amz-checksum-sha256. Without this the preflight fails and no upload can
+      # start. Production R2 needs the equivalent CORS policy on the bucket.
+      MINIO_API_CORS_ALLOW_ORIGIN: ${S3_CORS_ALLOW_ORIGIN:-http://localhost,http://localhost:4200,http://localhost:5173}
+    ports:
+      - '${S3_PORT:-9000}:9000'            # S3 API
+      - '${S3_CONSOLE_PORT:-9001}:9001'    # Web console
+    volumes:
+      - minio_data:/data
+
+  # ── MinIO bucket bootstrap ─────────────────────────────────────────────────
+  # NOT a compose service. The bucket is created by:
+  #
+  #     node scripts/ensure-media-bucket.mjs
+  #
+  # This used to be a `minio/mc` one-shot container. It was removed because it
+  # made `docker compose up` depend on pulling a second image for two API calls —
+  # on a machine that cannot reach Docker Hub, the whole stack failed to start.
+  # The script uses the AWS SDK this repo already depends on, is idempotent, works
+  # offline, and verifies the result with the same HeadBucket call the backend
+  # makes at boot.
+  #
+  # Nothing is lost by moving it out of compose: the guarantee that the API never
+  # comes up without upload capability is enforced by the backend itself
+  # (s3-storage.adapter.ts `assertReachable` — it refuses to boot), not by
+  # container ordering.
+  #
+  # Lifecycle rules L1–L4 (ADR-013 §5: temp/ expiry, incomplete-multipart abort,
+  # derived/ tiering) are deliberately NOT applied locally. They are storage-cost
+  # controls for the production bucket and will be configured on R2 at deployment.
+
   # ── NestJS Backend ─────────────────────────────────────────────────────────
   # Runs in development mode — ts-node with watch for hot-reload.
   # Production: build the image with target=production from apps/backend/Dockerfile.
@@ -64,6 +117,8 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+      minio:
+        condition: service_started
     environment:
       NODE_ENV: development
       PORT: 3000
@@ -77,6 +132,19 @@ services:
       JWT_PUBLIC_KEY_PATH: /run/secrets/jwt_public_key
       JWT_ACCESS_TOKEN_TTL: ${JWT_ACCESS_TOKEN_TTL:-900}
       JWT_REFRESH_TOKEN_TTL: ${JWT_REFRESH_TOKEN_TTL:-604800}
+      # ── Object storage (ADR-013) ────────────────────────────────────────────
+      # Two addresses for one service. The backend reaches MinIO by service
+      # name; the presigned URLs it issues are opened by the editor's BROWSER,
+      # which only resolves localhost. SigV4 includes Host among the signed
+      # headers, so a finished URL cannot be rewritten — S3_PUBLIC_BASE_URL is
+      # the host those URLs are signed against. On R2 both are the same value
+      # and this variable can be dropped.
+      S3_ENDPOINT: http://minio:9000
+      S3_PUBLIC_BASE_URL: ${S3_PUBLIC_BASE_URL:-http://localhost:9000}
+      S3_REGION: ${S3_REGION:-us-east-1}
+      S3_ACCESS_KEY: ${S3_ACCESS_KEY}
+      S3_SECRET_KEY: ${S3_SECRET_KEY}
+      S3_BUCKET_NAME: ${S3_BUCKET_NAME:-majalis-elm-media}
       CORS_ORIGIN: ${CORS_ORIGIN:-http://localhost}
       LOG_LEVEL: ${LOG_LEVEL:-debug}
       THROTTLE_TTL: 60000
@@ -113,3 +181,5 @@ services:
 volumes:
   postgres_data:
     name: majalis-elm-postgres-data
+  minio_data:
+    name: majalis-elm-minio-data

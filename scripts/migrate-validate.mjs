@@ -1,13 +1,14 @@
 /**
  * migrate-validate.mjs
- * يُشغِّل كل الـ 20 migration بالترتيب على pg-mem
+ * يُشغِّل كل ملفات migrations الموجودة في المجلد بالترتيب على pg-mem
+ * (القائمة تُقرأ من المجلد — لا قائمة مكتوبة يدوياً يمكن أن تتخلّف عن الواقع)
  */
 
 import { createRequire } from 'module';
 const require = createRequire(import.meta.url);
 const { newDb, DataType } = require('pg-mem');
 
-import { readFileSync } from 'fs';
+import { readFileSync, readdirSync } from 'fs';
 import { resolve, dirname } from 'path';
 import { fileURLToPath } from 'url';
 import { randomUUID } from 'crypto';
@@ -15,28 +16,28 @@ import { randomUUID } from 'crypto';
 const __dir = dirname(fileURLToPath(import.meta.url));
 const MIGRATIONS_DIR = resolve(__dir, '../apps/backend/migrations');
 
-const MIGRATIONS = [
-  '000_bootstrap.sql',
-  '001_identity_users.sql',
-  '002_identity_roles.sql',
-  '003_identity_auth_tokens.sql',
-  '004_identity_oauth_otp.sql',
-  '010_content_types.sql',
-  '011_content_taxonomy.sql',
-  '012_content_media.sql',
-  '013_content_items.sql',
-  '014_content_translations.sql',
-  '020_engagement_types.sql',
-  '021_engagement_comments.sql',
-  '022_engagement_qa.sql',
-  '030_notifications_types.sql',
-  '031_notifications_devices.sql',
-  '032_notifications_preferences.sql',
-  '033_notifications_log.sql',
-  '040_admin_audit_log.sql',
-  '041_admin_system_config.sql',
-  '042_admin_analytics.sql',
-];
+/**
+ * The migration list is READ FROM THE DIRECTORY, never hand-maintained.
+ *
+ * It used to be a hardcoded array of twenty filenames ending at 042. When
+ * 015_content_media_upload.sql (ADR-013 Stage A) was added, this script kept
+ * printing "✅ ALL 20/20 MIGRATIONS PASSED" while never opening it — and the dev
+ * database silently stayed one migration behind until an integration test hit a
+ * missing column. A validator that reports success over a file it never read is
+ * POLICY-SEC-001 category 4 (fabricated readiness), so the list cannot be
+ * something a developer has to remember to update.
+ *
+ * Numeric prefixes are zero-padded to three digits, so lexicographic order IS
+ * migration order. Seeds are data, not schema, and are excluded.
+ */
+const MIGRATIONS = readdirSync(MIGRATIONS_DIR)
+  .filter((name) => /^\d{3}_.*\.sql$/.test(name))
+  .sort();
+
+if (MIGRATIONS.length === 0) {
+  console.error(`No migrations found in ${MIGRATIONS_DIR} — refusing to report a passing schema.`);
+  process.exit(1);
+}
 
 function preprocessSql(sql) {
   return sql

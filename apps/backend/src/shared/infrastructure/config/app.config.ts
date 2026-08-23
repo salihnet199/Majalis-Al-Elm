@@ -42,6 +42,25 @@ export const throttleConfig = registerAs('throttle', () => ({
   limit: parseInt(process.env.THROTTLE_LIMIT ?? '200', 10),
 }));
 
+/**
+ * Object storage (ADR-013) — S3-compatible, vendor chosen by env vars alone.
+ *
+ * Deliberately no defaults for endpoint/credentials/bucket: a wrong-but-present
+ * default would let the server boot pointing at nothing, and uploads would fail
+ * one at a time in front of editors instead of once, loudly, at startup.
+ */
+export const s3Config = registerAs('s3', () => ({
+  endpoint: process.env.S3_ENDPOINT,
+  // No default here either: R2 requires "auto" while MinIO and AWS want a real
+  // region name, and SigV4 mixes the region into the signing key — a guessed
+  // default produces signatures the server rejects. S3_REGION is required.
+  region: process.env.S3_REGION,
+  accessKey: process.env.S3_ACCESS_KEY,
+  secretKey: process.env.S3_SECRET_KEY,
+  bucketName: process.env.S3_BUCKET_NAME,
+  publicBaseUrl: process.env.S3_PUBLIC_BASE_URL,
+}));
+
 export const logConfig = registerAs('log', () => ({
   level: process.env.LOG_LEVEL ?? 'info',
   pretty: process.env.LOG_PRETTY === 'true',
@@ -97,6 +116,53 @@ export const jwtKeyRequirementSchema = Joi.object({
       'it is a public constant committed to the repository',
   });
 
+/**
+ * Object storage — REQUIRED in every environment except `test`.
+ *
+ * ADR-013 makes S3-compatible storage the only media path, and the sponsor's
+ * Stage A decision (2026-08-22) is explicit that the server must refuse to boot
+ * without it rather than run in a "no uploads" state. Same shape as
+ * `jwtKeyRequirementSchema` above and the same reasoning: a capability the
+ * product depends on is not allowed to be silently absent.
+ *
+ * This layer checks that the variables exist and are well-formed.
+ * `assertStorageIntegrity()` (main.ts) then judges whether the VALUES are safe
+ * for the environment, and the HeadBucket probe in StorageModule proves the
+ * bucket is actually there. See storage-integrity.ts for why all three exist.
+ */
+export const s3ConfigRequirementSchema = Joi.object({
+  S3_ENDPOINT: Joi.string().trim().uri({ scheme: ['http', 'https'] }).required(),
+  S3_ACCESS_KEY: Joi.string().trim().min(1).required(),
+  S3_SECRET_KEY: Joi.string().trim().min(1).required(),
+  S3_BUCKET_NAME: Joi.string().trim().min(3).max(63).required(),
+  S3_REGION: Joi.string().trim().min(1).required(),
+  // Optional: only needed when the address the browser uses differs from the
+  // address the server uses (local Docker: minio:9000 vs localhost:9000).
+  // Presigned URLs are signed against this host, so it must be a real URL when
+  // present. Absent on R2/AWS, where both addresses are the same.
+  S3_PUBLIC_BASE_URL: Joi.string()
+    .trim()
+    .uri({ scheme: ['http', 'https'] })
+    .optional(),
+})
+  .unknown(true)
+  .messages({
+    'any.required':
+      '{{#label}} is required outside NODE_ENV=test — media upload (ADR-013) has no ' +
+      'fallback mode. For local development run `docker compose up -d minio` and copy the ' +
+      'S3 block from .env.example',
+    'string.uri':
+      '{{#label}} must be an absolute http(s) URL, e.g. http://localhost:9000 for local MinIO ' +
+      'or https://<account>.r2.cloudflarestorage.com for Cloudflare R2',
+    // Joi raises a DIFFERENT key when the value parses as a URI but the scheme is
+    // wrong (`http://` omitted, `s3://` pasted from a CLI example) — which is the
+    // likelier mistake of the two. Without this line the reader gets Joi's raw
+    // "scheme matching the http|https pattern" instead of the fix.
+    'string.uriCustomScheme':
+      '{{#label}} must be an absolute http(s) URL, e.g. http://localhost:9000 for local MinIO ' +
+      'or https://<account>.r2.cloudflarestorage.com for Cloudflare R2',
+  });
+
 /** validateConfig is passed to ConfigModule.forRoot({ validate }) */
 export function validateConfig(config: Record<string, unknown>) {
   const { error, value } = validationSchema.validate(config);
@@ -111,6 +177,11 @@ export function validateConfig(config: Record<string, unknown>) {
     const { error: jwtError } = jwtKeyRequirementSchema.validate(value);
     if (jwtError) {
       throw new Error(`Configuration validation error: ${jwtError.message}`);
+    }
+
+    const { error: s3Error } = s3ConfigRequirementSchema.validate(value);
+    if (s3Error) {
+      throw new Error(`Configuration validation error: ${s3Error.message}`);
     }
   }
 

@@ -34,6 +34,12 @@ export class TypeOrmMediaAssetRepository implements IMediaAssetRepository {
       thumbnailKey: asset.thumbnailKey,
       transcodeStatus: asset.transcodeStatus,
       transcodeError: asset.transcodeError,
+      uploadStatus: asset.uploadStatus,
+      sha256: asset.sha256,
+      verifiedBytes: asset.verifiedBytes,
+      uploadedAt: asset.uploadedAt,
+      multipartUploadId: asset.multipartUploadId,
+      uploadError: asset.uploadError,
       uploadedBy: asset.uploadedBy,
       deletedAt: asset.deletedAt,
       createdAt: asset.createdAt,
@@ -49,6 +55,16 @@ export class TypeOrmMediaAssetRepository implements IMediaAssetRepository {
       transcodeStatus: asset.transcodeStatus,
       transcodeError: asset.transcodeError,
       thumbnailKey: asset.thumbnailKey,
+      // Upload lifecycle (migration 015). These MUST be in the update set: the
+      // whole point of `complete` is to persist the verification result, and an
+      // omitted column here would leave an upload permanently PENDING_UPLOAD
+      // while the API reported success.
+      uploadStatus: asset.uploadStatus,
+      sha256: asset.sha256,
+      verifiedBytes: asset.verifiedBytes,
+      uploadedAt: asset.uploadedAt,
+      multipartUploadId: asset.multipartUploadId,
+      uploadError: asset.uploadError,
       deletedAt: asset.deletedAt,
       updatedAt: asset.updatedAt,
     });
@@ -71,6 +87,15 @@ export class TypeOrmMediaAssetRepository implements IMediaAssetRepository {
       thumbnailKey: orm.thumbnailKey,
       transcodeStatus: orm.transcodeStatus as any,
       transcodeError: orm.transcodeError,
+      uploadStatus: orm.uploadStatus as any,
+      sha256: orm.sha256,
+      // pg returns BIGINT as a string to avoid precision loss; a raw string here
+      // would make the domain's `verifiedBytes !== sizeBytes` check compare a
+      // string to a number and always fail.
+      verifiedBytes: orm.verifiedBytes === null ? null : Number(orm.verifiedBytes),
+      uploadedAt: orm.uploadedAt,
+      multipartUploadId: orm.multipartUploadId,
+      uploadError: orm.uploadError,
       uploadedBy: orm.uploadedBy,
       deletedAt: orm.deletedAt,
       createdAt: orm.createdAt,

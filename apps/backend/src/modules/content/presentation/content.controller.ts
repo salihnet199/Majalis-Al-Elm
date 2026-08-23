@@ -25,6 +25,7 @@ import {
 import { TranslationOrmEntity } from '../infrastructure/persistence/entities/translation.orm-entity';
 import { JwtAuthGuard } from '../../identity/presentation/guards/jwt-auth.guard';
 import { ContentType } from '../domain/content-item.entity';
+import { MediaUploadService } from '../application/services/media-upload.service';
 
 @ApiTags('Content (Public)')
 @Controller('content')
@@ -40,6 +41,7 @@ export class ContentController {
     private readonly mediaRepo: IMediaAssetRepository,
     @InjectRepository(TranslationOrmEntity)
     private readonly translationRepo: Repository<TranslationOrmEntity>,
+    private readonly uploadService: MediaUploadService,
   ) {}
 
   // ── Public Endpoint 1: GET /content ─────────────────────────────────────────
@@ -113,6 +115,7 @@ export class ContentController {
             mediaData = {
               durationMs: media.durationMs,
               thumbnailUrl: media.cdnUrl,
+              isAvailable: media.isUploaded,
             };
           }
         }
@@ -266,8 +269,14 @@ export class ContentController {
   @Get(':slug/media/stream')
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()
-  @ApiOperation({ summary: 'Stream protected media content (Presigned URL stub)' })
-  @ApiResponse({ status: 200, description: 'Media stream URL' })
+  @ApiOperation({
+    summary: 'Stream protected media content via a time-limited presigned URL',
+    description:
+      'API-002: returns a presigned GET valid for 60 minutes. Protected AUDIO/PDF never receive ' +
+      'a permanent cdn_url. The internal storage key is not exposed.',
+  })
+  @ApiResponse({ status: 200, description: 'Presigned media URL (60-minute TTL)' })
+  @ApiResponse({ status: 409, description: 'The media asset has no verified file in storage' })
   async streamMedia(@Param('slug') slug: string) {
     const item = await this.contentItemRepo.findBySlug(slug);
     if (!item || item.status !== 'PUBLISHED') {
@@ -291,22 +300,10 @@ export class ContentController {
       });
     }
 
-    const media = await this.mediaRepo.findById(item.mediaAssetId);
-    if (!media) {
-      throw new NotFoundException({
-        code: 'NOT_FOUND',
-        message: 'Media asset not found',
-      });
-    }
-
-    return {
-      data: {
-        storageKey: media.storageKey,
-        mimeType: media.mimeType,
-        durationMs: media.durationMs,
-        _note: 'Presigned URL not yet implemented — Phase 3',
-      },
-    };
+    // Signs a URL only for an asset whose bytes were verified in storage;
+    // otherwise raises 409 rather than handing out a link that would 404.
+    const data = await this.uploadService.issueDownloadUrl(item.mediaAssetId);
+    return { data };
   }
 
   // ── Public Endpoint 5: GET /content/:slug ───────────────────────────────────
@@ -381,6 +378,10 @@ export class ContentController {
           thumbnailUrl: media.cdnUrl,
           mimeType: media.mimeType,
           pageCount: media.pageCount,
+          // Whether a verified file exists in storage. Clients use this to
+          // decide whether to offer playback, instead of calling the stream
+          // endpoint and discovering a 409 in front of the user.
+          isAvailable: media.isUploaded,
         };
       }
     }

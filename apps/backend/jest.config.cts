@@ -6,5 +6,15 @@ module.exports = {
     '^.+\\.[tj]s$': ['ts-jest', { tsconfig: '<rootDir>/tsconfig.spec.json' }]
   },
   moduleFileExtensions: ['ts', 'js', 'html'],
-  coverageDirectory: '../../coverage/apps/backend'
+  coverageDirectory: '../../coverage/apps/backend',
+  // Suites that need live infrastructure are not part of the default run: they
+  // would turn `nx test backend` red on any machine without MinIO or Postgres up.
+  // They are NOT skippable-at-runtime — see jest.storage-integration.config.cts,
+  // jest.db-integration.config.cts, and the suites themselves, which fail loudly
+  // when their infrastructure is absent rather than passing with a warning.
+  testPathIgnorePatterns: [
+    '/node_modules/',
+    '\\.minio\\.integration\\.spec\\.ts$',
+    '\\.pg\\.integration\\.spec\\.ts$'
+  ]
 };

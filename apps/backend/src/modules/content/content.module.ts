@@ -20,6 +20,7 @@ import { ContentController } from './presentation/content.controller';
 import { AdminContentController } from './presentation/admin-content.controller';
 import { AdminTaxonomyController } from './presentation/admin-taxonomy.controller';
 import { AdminMediaController } from './presentation/admin-media.controller';
+import { MediaUploadService } from './application/services/media-upload.service';
 import { RolesGuard } from './presentation/guards/roles.guard';
 
 @Module({
@@ -41,6 +42,10 @@ import { RolesGuard } from './presentation/guards/roles.guard';
   ],
   providers: [
     RolesGuard,
+    // Injected by AdminMediaController (initiate/complete) and by
+    // ContentController (the presigned stream endpoint). It depends on
+    // STORAGE_SERVICE, which StorageModule exports globally.
+    MediaUploadService,
     {
       provide: CONTENT_ITEM_REPOSITORY,
       useClass: TypeOrmContentItemRepository,

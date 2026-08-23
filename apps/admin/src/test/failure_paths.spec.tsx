@@ -2,7 +2,7 @@ import React from 'react';
 import { describe, it, expect, vi, beforeEach, type Mock } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { ConfigProvider } from 'antd';
+import { ConfigProvider, message } from 'antd';
 
 /**
  * POLICY-SEC-001 regression suite — see docs/governance/TECHNICAL_DEBT.md.
@@ -62,6 +62,11 @@ const findText = (text: string | RegExp) => screen.findByText(text, undefined, {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  // antd's static `message` lives in its own container outside the tree that RTL
+  // unmounts, so toasts survive into the next test. Since half of these
+  // assertions are "no success message is present", a leaked toast is a false
+  // pass or a false failure depending on the order — clear it explicitly.
+  message.destroy();
 });
 
 describe('POLICY-SEC-001: dashboard never fabricates statistics or health', () => {
@@ -172,3 +177,184 @@ describe('POLICY-SEC-001: the content editor never offers invented categories', 
     expect(screen.queryByText('الصوتيات والدروس المسجلة')).toBeNull();
   });
 });
+
+/**
+ * The publishing claim.
+ *
+ * `POST /admin/content` creates a DRAFT — always; the form's old status field was
+ * whitelisted away by the server and never reached the database. The toast said
+ * "تم إضافة ونشر المحتوى بنجاح" regardless. These tests pin the replacement: the
+ * announced state is the state the server reported, and a failed transition is
+ * reported as a failed transition even though the save itself succeeded.
+ */
+describe('POLICY-SEC-001: the content editor announces only the status the server reported', () => {
+  const CATEGORY = { id: 'cat-1', slug: 'duroos', name: 'الدروس العلمية', contentCount: 3 };
+
+  const mockReads = () => {
+    (apiClient.get as Mock).mockImplementation(async (url: string) => {
+      if (url === '/content/categories') return { data: { data: [CATEGORY] } };
+      if (url === '/admin/authors') return { data: { data: [] } };
+      throw new Error(`unexpected GET ${url}`);
+    });
+  };
+
+  /** Opens the antd Select inside the form item carrying `label`. */
+  const openSelect = (label: string) => {
+    const item = screen.getByText(label).closest('.ant-form-item') as HTMLElement;
+    fireEvent.mouseDown(item.querySelector('.ant-select-selector') as HTMLElement);
+  };
+
+  const fillNewItem = async () => {
+    // Waiting for the category name proves the list loaded and was preselected.
+    expect(await findText(CATEGORY.name)).toBeInTheDocument();
+    fireEvent.change(screen.getByPlaceholderText('مثال: شرح كتاب التوحيد — الدرس الأول'), {
+      target: { value: 'شرح كتاب التوحيد — الدرس الأول' },
+    });
+    fireEvent.change(screen.getByPlaceholderText('kitab-tawheed-01'), {
+      target: { value: 'kitab-tawheed-01' },
+    });
+  };
+
+  const save = () => fireEvent.click(screen.getByRole('button', { name: 'حفظ المادة' }));
+
+  it('does not claim the item was saved when the create request fails', async () => {
+    mockReads();
+    (apiClient.post as Mock).mockRejectedValue(serverError);
+
+    render(<ContentModal open initialData={null} onClose={() => undefined} />, {
+      wrapper: createWrapper(),
+    });
+
+    await fillNewItem();
+    save();
+
+    expect(await findText(SERVER_MESSAGE)).toBeInTheDocument();
+    expect(screen.queryByText(/تم إضافة ونشر المحتوى بنجاح/)).toBeNull();
+    expect(screen.queryByText(/تم إنشاء المادة/)).toBeNull();
+  });
+
+  it('reports "مسودة" — not publication — for an item the server created as a draft', async () => {
+    mockReads();
+    (apiClient.post as Mock).mockResolvedValue({
+      data: { data: { id: 'c-1', slug: 'kitab-tawheed-01', type: 'AUDIO', status: 'DRAFT' } },
+    });
+
+    render(<ContentModal open initialData={null} onClose={() => undefined} />, {
+      wrapper: createWrapper(),
+    });
+
+    await fillNewItem();
+    save();
+
+    expect(await findText('تم إنشاء المادة — الحالة الحالية: مسودة.')).toBeInTheDocument();
+    expect(screen.queryByText(/ونشر المحتوى بنجاح/)).toBeNull();
+
+    // The payload is the DTO the endpoint accepts. `mediaUrl`/`authorName`/`status`
+    // were silently stripped by the global ValidationPipe (whitelist: true), which
+    // is why the old form could report 201 and change nothing.
+    const body = (apiClient.post as Mock).mock.calls[0][1];
+    expect(body).toMatchObject({
+      slug: 'kitab-tawheed-01',
+      type: 'AUDIO',
+      primaryLocale: 'ar',
+      categoryId: 'cat-1',
+      translations: [{ locale: 'ar', title: 'شرح كتاب التوحيد — الدرس الأول' }],
+    });
+    expect(body).not.toHaveProperty('mediaUrl');
+    expect(body).not.toHaveProperty('authorName');
+    expect(body).not.toHaveProperty('status');
+    // Exactly one call: nothing was transitioned, because no transition was asked for.
+    expect((apiClient.post as Mock).mock.calls).toHaveLength(1);
+  });
+
+  it('does not claim publication when the review transition fails after a successful create', async () => {
+    mockReads();
+    (apiClient.post as Mock).mockImplementation(async (url: string) => {
+      if (url === '/admin/content') {
+        return { data: { data: { id: 'c-1', slug: 'kitab-tawheed-01', type: 'AUDIO', status: 'DRAFT' } } };
+      }
+      throw Object.assign(new Error('Request failed with status code 403'), {
+        isAxiosError: true,
+        response: { status: 403, data: { error: { code: 'FORBIDDEN', message: 'Editor cannot publish' } } },
+      });
+    });
+
+    render(<ContentModal open initialData={null} onClose={() => undefined} />, {
+      wrapper: createWrapper(),
+    });
+
+    await fillNewItem();
+
+    openSelect('الإجراء بعد الحفظ');
+    const options = await screen.findAllByText('نشرها للعامة (مراجعة ثم نشر)');
+    fireEvent.click(options[options.length - 1]);
+
+    save();
+
+    // Both facts, in one message: the item exists, and it is not published.
+    const warning = await findText(/تغيير الحالة لم يكتمل/);
+    expect(warning).toBeInTheDocument();
+    expect(warning.textContent).toContain('الحالة الحالية: مسودة');
+    expect(screen.queryByText(/الحالة الحالية: منشور/)).toBeNull();
+    // The chain stopped at its first failing step rather than pressing on to publish.
+    const posted = (apiClient.post as Mock).mock.calls.map((c) => c[0]);
+    expect(posted).toEqual(['/admin/content', '/admin/content/c-1/submit-review']);
+  });
+
+  it('treats a create response without an id as a failure, not a save', async () => {
+    mockReads();
+    (apiClient.post as Mock).mockResolvedValue({ data: { data: { slug: 'kitab-tawheed-01' } } });
+
+    render(<ContentModal open initialData={null} onClose={() => undefined} />, {
+      wrapper: createWrapper(),
+    });
+
+    await fillNewItem();
+    save();
+
+    expect(await findText('تم قبول الطلب لكن الخادم لم يُعِد معرّف المادة المنشأة.')).toBeInTheDocument();
+    expect(screen.queryByText(/تم إنشاء المادة/)).toBeNull();
+  });
+
+  it('disables saving when the item’s real state could not be read, instead of writing guesses', async () => {
+    (apiClient.get as Mock).mockImplementation(async (url: string) => {
+      if (url === '/content/categories') return { data: { data: [CATEGORY] } };
+      if (url === '/admin/authors') return { data: { data: [] } };
+      throw serverError; // GET /admin/content/c-1
+    });
+
+    const row = {
+      id: 'c-1',
+      slug: 'kitab-tawheed-01',
+      type: 'AUDIO',
+      status: 'PUBLISHED',
+      primaryLocale: 'ar',
+      title: 'شرح كتاب التوحيد',
+      categoryId: null,
+      authorId: null,
+      mediaAssetId: null,
+      viewCount: 0,
+      isFeatured: false,
+      publishedAt: null,
+      updatedAt: '2026-01-01T00:00:00.000Z',
+      createdAt: '2026-01-01T00:00:00.000Z',
+    } as const;
+
+    render(
+      <ContentModal open initialData={row as never} onClose={() => undefined} />,
+      { wrapper: createWrapper() },
+    );
+
+    expect(await findText('تعذّر قراءة بيانات المادة من الخادم')).toBeInTheDocument();
+
+    const ok = screen.getByRole('button', { name: 'حفظ التعديلات' });
+    expect(ok).toBeDisabled();
+
+    fireEvent.click(ok);
+    expect(apiClient.patch).not.toHaveBeenCalled();
+    // The form itself is not rendered, so there are no half-known values on screen
+    // that could be mistaken for the item's real category, author or attached file.
+    expect(screen.queryByPlaceholderText('مثال: شرح كتاب التوحيد — الدرس الأول')).toBeNull();
+  });
+});
+
