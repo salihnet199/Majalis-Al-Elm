@@ -1,70 +1,96 @@
-import 'dart:typed_data';
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:pdfx/pdfx.dart';
+import '../../../../core/network/error_handler.dart';
+import '../../../../core/network/media_file_fetcher.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_typography.dart';
 import '../../domain/models/content_item_model.dart';
+import '../../providers/media_source_provider.dart';
 
-class PdfViewerScreen extends StatefulWidget {
+class PdfViewerScreen extends ConsumerStatefulWidget {
   final ContentItemModel item;
+
+  /// Renders the chrome without opening a document. Used by widget tests, which
+  /// have neither a storage provider nor a real PDF to open.
   final bool isTestMode;
 
-  const PdfViewerScreen({
-    super.key,
-    required this.item,
-    this.isTestMode = false,
-  });
+  const PdfViewerScreen({super.key, required this.item, this.isTestMode = false});
 
   @override
-  State<PdfViewerScreen> createState() => _PdfViewerScreenState();
+  ConsumerState<PdfViewerScreen> createState() => _PdfViewerScreenState();
 }
 
-class _PdfViewerScreenState extends State<PdfViewerScreen> {
+class _PdfViewerScreenState extends ConsumerState<PdfViewerScreen> {
   PdfController? _pdfController;
   int _actualPageNumber = 1;
   int _allPagesCount = 0;
-  bool _isLoading = true;
   String? _errorMessage;
+
+  /// The source the current controller was built from, so a rebuild does not
+  /// re-open the same document and a re-signed URL does open.
+  String? _openedSource;
 
   @override
   void initState() {
     super.initState();
-    if (!widget.isTestMode) {
-      _initPdf();
-    } else {
-      _isLoading = false;
+    if (widget.isTestMode) {
       _allPagesCount = widget.item.pageCount ?? 1;
     }
   }
 
-  void _initPdf() {
+  /// Opens the resolved source.
+  ///
+  /// The screen used to open `widget.item.url` — the item's public CDN thumbnail,
+  /// which for a protected PDF is empty or points at an image, never the document
+  /// (ADR-013 gives protected assets no permanent `cdn_url`). Worse, remote URLs
+  /// went through a local `InternetAddressCustomLoader` that returned
+  /// `Uint8List(0)` unconditionally, so the viewer opened a zero-byte document and
+  /// reported success for a file it had never fetched. Both are gone: the source
+  /// comes from `mediaSourceProvider` and remote bytes are really downloaded.
+  Future<void> _open(MediaSource source) async {
+    final target = switch (source) {
+      LocalFileMediaSource(path: final p) => p,
+      RemoteMediaSource(url: final u) => u,
+    };
+
+    if (_openedSource == target) return;
+    _openedSource = target;
+
     try {
-      final url = widget.item.url;
-      Future<PdfDocument> documentFuture;
+      final Future<PdfDocument> documentFuture = switch (source) {
+        LocalFileMediaSource(path: final p) => PdfDocument.openFile(p),
+        RemoteMediaSource(url: final u) =>
+          ref.read(mediaFileFetcherProvider).fetch(u).then(PdfDocument.openData),
+      };
 
-      if (url.startsWith('asset://') || url.startsWith('assets/')) {
-        final assetPath = url.replaceFirst('asset://', '');
-        documentFuture = PdfDocument.openAsset(assetPath);
-      } else if (url.startsWith('http://') || url.startsWith('https://')) {
-        documentFuture = PdfDocument.openData(
-          InternetAddressCustomLoader.load(url),
-        );
-      } else {
-        documentFuture = PdfDocument.openFile(url);
-      }
+      // Awaited here rather than handed to PdfController unresolved, so a failed
+      // download surfaces as an Arabic error instead of an exception thrown inside
+      // the viewer's own future.
+      final document = await documentFuture;
+      if (!mounted) return;
 
-      _pdfController = PdfController(
-        document: documentFuture,
-      );
+      final controller = PdfController(document: Future.value(document));
       setState(() {
-        _isLoading = false;
+        _pdfController?.dispose();
+        _pdfController = controller;
+        _errorMessage = null;
       });
+    } on AppException catch (e) {
+      if (!mounted) return;
+      // Allows "إعادة المحاولة" to retry the same source.
+      _openedSource = null;
+      setState(() => _errorMessage = e.message);
     } catch (e) {
-      setState(() {
-        _isLoading = false;
-        _errorMessage = 'تعذر فتح ملف PDF: ${e.toString()}';
-      });
+      if (!mounted) return;
+      _openedSource = null;
+      setState(() => _errorMessage = 'تعذر فتح ملف PDF: $e');
     }
+  }
+
+  String _resolutionMessage(Object error) {
+    if (error is AppException) return error.message;
+    return 'تعذر تجهيز ملف PDF: $error';
   }
 
   @override
@@ -77,23 +103,49 @@ class _PdfViewerScreenState extends State<PdfViewerScreen> {
   Widget build(BuildContext context) {
     final totalPages = _allPagesCount > 0 ? _allPagesCount : widget.item.pageCount ?? 1;
 
+    // In test mode nothing is resolved and nothing is opened; the chrome is the
+    // subject. Watching the provider here would try to reach the network.
+    final sourceAsync = widget.isTestMode
+        ? const AsyncValue<MediaSource>.loading()
+        : ref.watch(mediaSourceProvider(widget.item));
+
+    if (!widget.isTestMode) {
+      sourceAsync.whenData((source) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted) _open(source);
+        });
+      });
+    }
+
+    final errorMessage =
+        _errorMessage ?? (sourceAsync.hasError ? _resolutionMessage(sourceAsync.error!) : null);
+
+    final isBusy = errorMessage == null && _pdfController == null && !widget.isTestMode;
+
     return Scaffold(
       appBar: AppBar(
         title: Text(widget.item.title),
         actions: [
           IconButton(
             icon: Icon(
-              widget.item.isDownloaded ? Icons.download_done_rounded : Icons.download_for_offline_outlined,
+              widget.item.isDownloaded
+                  ? Icons.download_done_rounded
+                  : Icons.download_for_offline_outlined,
               color: widget.item.isDownloaded ? AppColors.secondary : null,
             ),
-            tooltip: widget.item.isDownloaded ? 'محفوظ محلياً' : 'تنزيل للقراءة بدون إنترنت',
+            tooltip: widget.item.isDownloaded ? 'محفوظ محلياً' : 'التنزيل للقراءة بدون إنترنت',
             onPressed: () {
+              // This used to say "جاري إضافة الكتاب إلى قائمة التنزيل" while
+              // nothing was queued and no file was written — a success message for
+              // an operation that does not exist (POLICY-SEC-001 category 3).
+              // The offline downloader is TECH-DEBT-016; until it exists the
+              // button states the truth.
               ScaffoldMessenger.of(context).showSnackBar(
                 SnackBar(
                   content: Text(
                     widget.item.isDownloaded
                         ? 'الكتاب محفوظ بالفعل في المحفوظات'
-                        : 'جاري إضافة الكتاب إلى قائمة التنزيل',
+                        : 'التنزيل للقراءة بدون إنترنت غير متاح بعد — القراءة تعمل عبر الإنترنت',
                   ),
                 ),
               );
@@ -108,9 +160,9 @@ class _PdfViewerScreenState extends State<PdfViewerScreen> {
       ),
       body: Stack(
         children: [
-          if (_isLoading)
+          if (isBusy)
             const Center(child: CircularProgressIndicator())
-          else if (_errorMessage != null)
+          else if (errorMessage != null)
             Center(
               child: Padding(
                 padding: const EdgeInsets.all(24),
@@ -120,9 +172,19 @@ class _PdfViewerScreenState extends State<PdfViewerScreen> {
                     const Icon(Icons.error_outline_rounded, size: 48, color: AppColors.error),
                     const SizedBox(height: 16),
                     Text(
-                      _errorMessage!,
+                      errorMessage,
                       textAlign: TextAlign.center,
                       style: AppTypography.bodyMedium.copyWith(color: AppColors.error),
+                    ),
+                    const SizedBox(height: 16),
+                    TextButton.icon(
+                      onPressed: () {
+                        setState(() => _errorMessage = null);
+                        _openedSource = null;
+                        ref.invalidate(mediaSourceProvider(widget.item));
+                      },
+                      icon: const Icon(Icons.refresh_rounded),
+                      label: const Text('إعادة المحاولة'),
                     ),
                   ],
                 ),
@@ -205,10 +267,7 @@ class _PdfViewerScreenState extends State<PdfViewerScreen> {
           ),
         ),
         actions: [
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(),
-            child: const Text('إلغاء'),
-          ),
+          TextButton(onPressed: () => Navigator.of(ctx).pop(), child: const Text('إلغاء')),
           ElevatedButton(
             onPressed: () {
               final page = int.tryParse(controller.text);
@@ -229,11 +288,5 @@ class _PdfViewerScreenState extends State<PdfViewerScreen> {
         ],
       ),
     );
-  }
-}
-
-class InternetAddressCustomLoader {
-  static Future<Uint8List> load(String url) async {
-    return Uint8List(0);
   }
 }

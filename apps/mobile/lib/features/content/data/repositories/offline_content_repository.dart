@@ -39,9 +39,14 @@ class OfflineContentRepository implements IOfflineContentRepository {
   }) async {
     final isar = await _db;
 
+    // `slug` is the key the stream endpoint is addressed by, so it must be the
+    // real slug. It used to be set to `item.id`, which made every stored row
+    // claim an address that resolves to nothing.
+    final slug = item.slug.isNotEmpty ? item.slug : item.id;
+
     final meta = ContentMetaCollection()
       ..contentId = item.id
-      ..slug = item.id
+      ..slug = slug
       ..title = item.title
       ..contentType = item.type
       ..localFilePath = localFilePath
@@ -55,7 +60,7 @@ class OfflineContentRepository implements IOfflineContentRepository {
       if (item.textContent != null && item.textContent!.isNotEmpty) {
         final textDoc = OfflineTextCollection()
           ..contentId = item.id
-          ..slug = item.id
+          ..slug = slug
           ..title = item.title
           ..body = item.textContent!
           ..locale = 'ar'

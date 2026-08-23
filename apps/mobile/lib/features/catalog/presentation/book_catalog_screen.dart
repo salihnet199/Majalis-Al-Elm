@@ -335,11 +335,18 @@ class _BookCatalogScreenState extends State<BookCatalogScreen> {
                                     Icons.download_for_offline_outlined,
                                     color: AppColors.primary,
                                   ),
-                                  tooltip: 'تنزيل الكتاب بدون إنترنت',
+                                  tooltip: 'التنزيل للقراءة بدون إنترنت',
                                   onPressed: () {
+                                    // This used to confirm «تمت إضافة … إلى قائمة
+                                    // التنزيل» while nothing was queued: no writer
+                                    // for the queue exists, and no caller of
+                                    // saveDownloadedContent. POLICY-SEC-001
+                                    // category 3. See TECH-DEBT-016.
                                     ScaffoldMessenger.of(context).showSnackBar(
-                                      SnackBar(
-                                        content: Text('تمت إضافة "${item.title}" إلى قائمة التنزيل'),
+                                      const SnackBar(
+                                        content: Text(
+                                          'التنزيل للقراءة بدون إنترنت غير متاح بعد — القراءة تعمل عبر الإنترنت',
+                                        ),
                                       ),
                                     );
                                   },

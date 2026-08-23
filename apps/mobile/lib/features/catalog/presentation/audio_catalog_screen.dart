@@ -298,11 +298,18 @@ class _AudioCatalogScreenState extends State<AudioCatalogScreen> {
                                     Icons.download_for_offline_outlined,
                                     color: AppColors.primary,
                                   ),
-                                  tooltip: 'تنزيل للاستماع بدون إنترنت',
+                                  tooltip: 'التنزيل للاستماع بدون إنترنت',
                                   onPressed: () {
+                                    // This used to confirm «تمت إضافة … إلى قائمة
+                                    // التنزيل» while nothing was queued: no writer
+                                    // for the queue exists, and no caller of
+                                    // saveDownloadedContent. POLICY-SEC-001
+                                    // category 3. See TECH-DEBT-016.
                                     ScaffoldMessenger.of(context).showSnackBar(
-                                      SnackBar(
-                                        content: Text('تمت إضافة "${item.title}" إلى قائمة التنزيل'),
+                                      const SnackBar(
+                                        content: Text(
+                                          'التنزيل للاستماع بدون إنترنت غير متاح بعد — الاستماع يعمل عبر الإنترنت',
+                                        ),
                                       ),
                                     );
                                   },

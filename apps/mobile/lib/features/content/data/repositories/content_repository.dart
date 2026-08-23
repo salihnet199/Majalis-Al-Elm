@@ -5,6 +5,7 @@ import '../../../../core/network/api_response.dart';
 import '../../../../core/network/error_handler.dart';
 import '../../domain/models/category_model.dart';
 import '../../domain/models/content_item_model.dart';
+import '../../domain/models/media_stream_model.dart';
 import '../../domain/models/tag_model.dart';
 
 class ContentListResult {
@@ -39,7 +40,7 @@ abstract class IContentRepository {
 
   Future<List<TagModel>> getTags({String locale = 'ar'});
 
-  Future<Map<String, dynamic>> getMediaStreamUrl(String slug);
+  Future<MediaStreamModel> getMediaStreamUrl(String slug);
 }
 
 class ContentRepository implements IContentRepository {
@@ -222,7 +223,17 @@ class ContentRepository implements IContentRepository {
   }
 
   @override
-  Future<Map<String, dynamic>> getMediaStreamUrl(String slug) async {
+  Future<MediaStreamModel> getMediaStreamUrl(String slug) async {
+    if (slug.trim().isEmpty) {
+      // A blank slug cannot address anything; requesting `/content//media/stream`
+      // would answer 404 and read as "the file is missing" instead of "the client
+      // never knew which item to ask for".
+      throw const AppException(
+        code: 'MEDIA_SLUG_MISSING',
+        message: 'تعذر تحديد المادة المطلوبة، يرجى العودة إلى القائمة وإعادة المحاولة',
+      );
+    }
+
     try {
       final response = await apiClient.get(
         ApiEndpoints.contentMediaStream(slug),
@@ -233,11 +244,18 @@ class ContentRepository implements IContentRepository {
           ? rawData['data']
           : rawData;
 
-      if (payload is Map<String, dynamic>) {
-        return payload;
+      final stream = MediaStreamModel.tryParse(payload);
+      if (stream == null) {
+        // This used to `return {'url': ''}`, so an unreadable response reached the
+        // player as a successful result with an empty URL — POLICY-SEC-001
+        // category 3 (fabricated success). The failure is real, so it is raised.
+        throw const AppException(
+          code: 'STREAM_ERROR',
+          message: 'لم يُصدر الخادم رابطاً صالحاً لتشغيل هذه المادة',
+        );
       }
 
-      return {'url': ''};
+      return stream;
     } on DioException catch (e) {
       if (e.response?.data != null && e.response?.data is Map<String, dynamic>) {
         final errorData = e.response!.data['error'];
