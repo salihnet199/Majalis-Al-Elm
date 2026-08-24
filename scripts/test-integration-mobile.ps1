@@ -15,7 +15,9 @@ $imageName = "majalis-elm/postgres:dev"
 $dbName = "majaliselm"
 $dbUser = "majaliselm"
 $dbPass = "majaliselm_test_pass_2026"
-$dbPort = "5432"
+# Use 5433 to avoid conflict with the existing dev compose postgres on 5432
+$dbPort = "5433"
+$dbHostPort = "5433"
 
 Write-Host "=================================================================" -ForegroundColor Cyan
 Write-Host "  Majalis Al-Elm — Mobile Integration & PostgreSQL Test Pipeline " -ForegroundColor Cyan
@@ -29,7 +31,18 @@ if (-not (Test-Path "secrets/jwt_private_key.pem") -or -not (Test-Path "secrets/
     Write-Host ">>> [1/7] JWT RS256 keys found in secrets/." -ForegroundColor Green
 }
 
-# 2. Start PostgreSQL Container
+# 2. Build custom Postgres image (pg_uuidv7) if not already present, then start container
+$imageExists = docker images --format '{{.Repository}}:{{.Tag}}' | Where-Object { $_ -eq $imageName }
+if (-not $imageExists) {
+    Write-Host ">>> [2/7] Building custom PostgreSQL image ($imageName) — this takes ~2 minutes the first time..." -ForegroundColor Yellow
+    docker build -t $imageName "$rootDir\infra\docker\postgres"
+    if ($LASTEXITCODE -ne 0) {
+        Write-Error "Failed to build custom PostgreSQL image. Check internet access (GitHub clone required)."
+    }
+} else {
+    Write-Host ">>> [2/7] Custom PostgreSQL image ($imageName) already present." -ForegroundColor Green
+}
+
 if ($ResetDb) {
     Write-Host ">>> [2/7] Resetting PostgreSQL container (--reset-db)..." -ForegroundColor Yellow
     docker rm -f $containerName al-fajr-postgres majalis-elm-postgres 2>$null | Out-Null
@@ -38,13 +51,15 @@ if ($ResetDb) {
 $running = docker ps --format '{{.Names}}' | Where-Object { $_ -eq $containerName }
 if (-not $running) {
     Write-Host ">>> [2/7] Starting PostgreSQL container ($containerName)..." -ForegroundColor Yellow
-    docker rm -f $containerName al-fajr-postgres majalis-elm-postgres 2>$null | Out-Null
+    docker rm -f $containerName 2>$null | Out-Null
     docker run -d --name $containerName `
         -e "POSTGRES_DB=$dbName" `
         -e "POSTGRES_USER=$dbUser" `
         -e "POSTGRES_PASSWORD=$dbPass" `
-        -p "${dbPort}:5432" `
+        -p "${dbHostPort}:5432" `
         $imageName | Out-Null
+} else {
+    Write-Host ">>> [2/7] PostgreSQL container ($containerName) already running." -ForegroundColor Green
 }
 
 # 3. Wait for PostgreSQL readiness
@@ -52,6 +67,7 @@ Write-Host ">>> [3/7] Waiting for PostgreSQL to be ready on port $dbPort..." -Fo
 $ready = $false
 for ($i = 1; $i -le 30; $i++) {
     docker exec $containerName pg_isready -U $dbUser -d $dbName -q 2>$null
+    # Note: container exposes on 5433 externally but pg_isready uses the container's internal 5432
     if ($LASTEXITCODE -eq 0) {
         $ready = $true
         Write-Host "    PostgreSQL is ready." -ForegroundColor Green
@@ -81,7 +97,7 @@ Write-Host ">>> [5/7] Starting NestJS Backend Server..." -ForegroundColor Yellow
 $env:NODE_ENV = "development"
 $env:PORT = "3000"
 $env:DATABASE_HOST = "localhost"
-$env:DATABASE_PORT = $dbPort
+$env:DATABASE_PORT = $dbHostPort
 $env:DATABASE_NAME = $dbName
 $env:DATABASE_USER = $dbUser
 $env:DATABASE_PASSWORD = $dbPass
