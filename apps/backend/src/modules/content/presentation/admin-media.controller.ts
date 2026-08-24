@@ -93,8 +93,10 @@ export class AdminMediaController {
     description:
       'Calls headObject and marks the asset UPLOADED only if storage confirms an object of the ' +
       'declared size. If storage holds nothing, or the wrong number of bytes, the asset is ' +
-      'recorded as ABORTED and this returns 409. transcodeStatus stays PENDING: ADR-013 Stage B ' +
-      '(media processing) is not implemented.',
+      'recorded as ABORTED and this returns 409. After confirming the upload, a transcode job ' +
+      'is enqueued in BullMQ (ADR-013 Stage B). ffmpeg encoding is not yet wired — ' +
+      'transcodeStatus will reach TRANSCODED but transcodeError will carry an explicit ' +
+      'PLACEHOLDER warning until real encoding is connected on the production VPS.',
   })
   @ApiResponse({ status: 200, description: 'Upload verified against storage' })
   @ApiResponse({ status: 400, description: 'Multipart upload completed without part list' })

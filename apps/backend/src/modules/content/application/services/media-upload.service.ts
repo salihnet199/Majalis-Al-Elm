@@ -26,6 +26,7 @@ import {
 import { IStorageService, STORAGE_SERVICE } from '../../domain/ports/storage.service';
 import { CompleteMediaUploadDto } from '../dtos/complete-media-upload.dto';
 import { InitiateMediaUploadDto } from '../dtos/initiate-media-upload.dto';
+import { MediaTranscodeService } from './media-transcode.service';
 
 /**
  * MediaUploadService — the presigned direct-upload flow of ADR-013 Stage A.
@@ -56,6 +57,10 @@ export class MediaUploadService {
   constructor(
     @Inject(MEDIA_ASSET_REPOSITORY) private readonly mediaRepo: IMediaAssetRepository,
     @Inject(STORAGE_SERVICE) private readonly storage: IStorageService,
+    // Optional: BullMQ not available when REDIS_URL is absent (e.g. unit tests).
+    // When present, complete() enqueues a transcode job after confirming upload.
+    @Inject(MediaTranscodeService)
+    private readonly transcodeService: MediaTranscodeService | null,
   ) {}
 
   /**
@@ -284,12 +289,22 @@ export class MediaUploadService {
     );
 
     // ── ADR-013 Stage B seam ────────────────────────────────────────────────
-    // This is where the transformation job is enqueued (approved deviation:
-    // enqueue from here rather than relying on bucket events). Stage B — BullMQ
-    // worker, ffmpeg/sharp — is NOT implemented, so there is nothing to enqueue
-    // and nothing is faked: transcodeStatus stays PENDING and the response says
-    // so explicitly. Adding a no-op "enqueued" here would recreate exactly the
-    // fabrication this whole change removed.
+    // Enqueue the transcode job immediately after confirming the upload.
+    // Fire-and-forget: the HTTP response does not wait for transcoding.
+    // transcodeStatus in the response is still PENDING (set by the DB row);
+    // the worker will transition it to QUEUED → TRANSCODING → TRANSCODED.
+    if (this.transcodeService) {
+      this.transcodeService.enqueue(updated.id.value, updated.storageKey).catch((err) =>
+        this.logger.error(
+          `[Stage B] Failed to enqueue transcode job for ${updated.id.value}: ${(err as Error).message}`,
+        ),
+      );
+    } else {
+      this.logger.warn(
+        `[Stage B] MediaTranscodeService not available — skipping transcode job for ${updated.id.value}. ` +
+          'Set REDIS_URL to enable processing.',
+      );
+    }
 
     return this.presentCompletion(updated, { alreadyComplete: false });
   }

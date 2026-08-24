@@ -25,7 +25,16 @@
  */
 import { UUIDv7 } from '../../../shared/domain/uuid.vo';
 
-export type TranscodeStatus = 'PENDING' | 'PROCESSING' | 'DONE' | 'FAILED';
+export type TranscodeStatus =
+  | 'PENDING'
+  | 'PROCESSING'
+  | 'DONE'
+  | 'FAILED'
+  // ADR-013 Stage B (BullMQ) — added by migration 016
+  | 'QUEUED'
+  | 'TRANSCODING'
+  | 'TRANSCODED'
+  | 'TRANSCODE_FAILED';
 export type UploadStatus = 'PENDING_UPLOAD' | 'UPLOADED' | 'ABORTED';
 
 /**

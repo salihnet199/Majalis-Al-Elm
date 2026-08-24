@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
+import { BullModule } from '@nestjs/bullmq';
 import { ContentItemOrmEntity } from './infrastructure/persistence/entities/content-item.orm-entity';
 import { CategoryOrmEntity } from './infrastructure/persistence/entities/category.orm-entity';
 import { AuthorOrmEntity } from './infrastructure/persistence/entities/author.orm-entity';
@@ -21,6 +22,10 @@ import { AdminContentController } from './presentation/admin-content.controller'
 import { AdminTaxonomyController } from './presentation/admin-taxonomy.controller';
 import { AdminMediaController } from './presentation/admin-media.controller';
 import { MediaUploadService } from './application/services/media-upload.service';
+import { MediaTranscodeService } from './application/services/media-transcode.service';
+import { TranscodeProcessor } from './application/jobs/transcode.processor';
+import { QueueModule } from '../../shared/infrastructure/queue/queue.module';
+import { MEDIA_TRANSCODE_QUEUE } from '../../shared/infrastructure/queue/media-transcode.queue';
 import { RolesGuard } from './presentation/guards/roles.guard';
 
 @Module({
@@ -33,6 +38,9 @@ import { RolesGuard } from './presentation/guards/roles.guard';
       MediaAssetOrmEntity,
       TranslationOrmEntity,
     ]),
+    // ADR-013 Stage B: embedded BullMQ worker
+    QueueModule,
+    BullModule.registerQueue({ name: MEDIA_TRANSCODE_QUEUE }),
   ],
   controllers: [
     ContentController,
@@ -46,6 +54,9 @@ import { RolesGuard } from './presentation/guards/roles.guard';
     // ContentController (the presigned stream endpoint). It depends on
     // STORAGE_SERVICE, which StorageModule exports globally.
     MediaUploadService,
+    // ADR-013 Stage B: enqueue jobs + process them (embedded worker)
+    MediaTranscodeService,
+    TranscodeProcessor,
     {
       provide: CONTENT_ITEM_REPOSITORY,
       useClass: TypeOrmContentItemRepository,
