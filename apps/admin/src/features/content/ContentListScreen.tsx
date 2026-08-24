@@ -9,6 +9,7 @@ import {
   FilePdfOutlined,
   FileTextOutlined,
   PictureOutlined,
+  CloudUploadOutlined,
 } from '@ant-design/icons';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiClient } from '../../core/api/client';
@@ -16,6 +17,7 @@ import { toArabicErrorMessage } from '../../core/api/errorMessage';
 import { queryKeys } from '../../core/queries/queryKeys';
 import { AdminContentRow, ContentType, ContentStatus } from '../../core/types/content.types';
 import { ContentModal } from './ContentModal';
+import { BulkUploadDrawer } from './BulkUploadDrawer';
 
 const { Title, Text } = Typography;
 const { Option } = Select;
@@ -46,6 +48,7 @@ export const ContentListScreen: React.FC = () => {
   const [pageSize, setPageSize] = useState(10);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingItem, setEditingItem] = useState<AdminContentRow | null>(null);
+  const [isBulkDrawerOpen, setIsBulkDrawerOpen] = useState(false);
 
   // TanStack Query: Content list with server-side pagination & filter
   const { data, isLoading, isError, error } = useQuery({
@@ -200,17 +203,27 @@ export const ContentListScreen: React.FC = () => {
             إضافة، تعديل، ونشر المواد الصوتية، الكتب والوثائق، المقالات والصور
           </Text>
         </div>
-        <Button
-          type="primary"
-          icon={<PlusOutlined />}
-          onClick={() => {
-            setEditingItem(null);
-            setIsModalOpen(true);
-          }}
-          className="bg-emerald-600 hover:bg-emerald-500 rounded-lg shadow-lg h-10 px-5 font-bold"
-        >
-          إضافة محتوى جديد
-        </Button>
+        <Space wrap>
+          <Button
+            id="bulk-upload-btn"
+            icon={<CloudUploadOutlined />}
+            onClick={() => setIsBulkDrawerOpen(true)}
+            className="rounded-lg h-10 px-4 font-semibold border-slate-600 text-slate-300 hover:border-emerald-500 hover:text-emerald-400"
+          >
+            رفع بالجملة
+          </Button>
+          <Button
+            type="primary"
+            icon={<PlusOutlined />}
+            onClick={() => {
+              setEditingItem(null);
+              setIsModalOpen(true);
+            }}
+            className="bg-emerald-600 hover:bg-emerald-500 rounded-lg shadow-lg h-10 px-5 font-bold"
+          >
+            إضافة محتوى جديد
+          </Button>
+        </Space>
       </div>
 
       {/* A failed list read must not look like an empty library. */}
@@ -309,6 +322,12 @@ export const ContentListScreen: React.FC = () => {
           setIsModalOpen(false);
           setEditingItem(null);
         }}
+      />
+
+      {/* Bulk Upload Drawer */}
+      <BulkUploadDrawer
+        open={isBulkDrawerOpen}
+        onClose={() => setIsBulkDrawerOpen(false)}
       />
     </div>
   );
