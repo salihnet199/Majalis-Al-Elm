@@ -3,11 +3,11 @@ import 'package:flutter/material.dart';
 class AppColors {
   AppColors._();
 
-  // Primary - Elegant Deep Emerald & Golden hues for Islamic & Educational aesthetics
-  static const Color primary = Color(0xFF1B4332);
-  static const Color primaryLight = Color(0xFF2D6A4F);
-  static const Color primaryDark = Color(0xFF081C15);
-
+  // Primary — Heritage Mocha Brown & Antique Gold (الهوية البصرية الجديدة، قرار 2026-08-24)
+  // ملاحظة: الأخضر #1B4332 كان الهوية القديمة — أُستبدل بالكامل
+  static const Color primary = mocha800;      // #2D1F18 — البني الدافئ الرئيسي
+  static const Color primaryLight = gold500;  // #D4AF37 — الذهبي للـaccents الفاتحة
+  static const Color primaryDark = mocha950;  // #1A120D — الموكا العميق للخلفيات
   // Secondary - Accent Gold
   static const Color secondary = Color(0xFFD4AF37);
   static const Color secondaryLight = Color(0xFFF3E5AB);

@@ -56,16 +56,28 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                   // Logo & Header
                   Center(
                     child: Container(
-                      width: 80,
-                      height: 80,
+                      width: 88,
+                      height: 88,
                       decoration: BoxDecoration(
-                        color: AppColors.primary.withAlpha(25),
+                        gradient: const LinearGradient(
+                          colors: [AppColors.mocha800, AppColors.mocha900],
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                        ),
                         shape: BoxShape.circle,
+                        border: Border.all(color: AppColors.gold500, width: 2),
+                        boxShadow: [
+                          BoxShadow(
+                            color: AppColors.gold500.withAlpha(60),
+                            blurRadius: 20,
+                            spreadRadius: 2,
+                          ),
+                        ],
                       ),
                       child: const Icon(
                         Icons.menu_book_rounded,
-                        size: 42,
-                        color: AppColors.primary,
+                        size: 44,
+                        color: AppColors.gold400,
                       ),
                     ),
                   ),
@@ -84,7 +96,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                     textAlign: TextAlign.center,
                     style: AppTypography.sheikhName.copyWith(
                       fontSize: 16,
-                      color: AppColors.primary,
+                      color: AppColors.gold500,
                     ),
                   ),
                   const SizedBox(height: 32),
