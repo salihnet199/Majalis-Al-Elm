@@ -22,8 +22,8 @@ import { Processor, WorkerHost, OnWorkerEvent } from '@nestjs/bullmq';
 import { Inject, Logger } from '@nestjs/common';
 import { Job } from 'bullmq';
 import { DataSource } from 'typeorm';
-import { MEDIA_TRANSCODE_QUEUE, TranscodeJobData } from '../../../shared/infrastructure/queue/media-transcode.queue';
-import { IStorageService, STORAGE_SERVICE } from '../domain/ports/storage.service';
+import { MEDIA_TRANSCODE_QUEUE, TranscodeJobData } from '../../../../shared/infrastructure/queue/media-transcode.queue';
+import { IStorageService, STORAGE_SERVICE } from '../../domain/ports/storage.service';
 
 /** حالات transcode في DB — تتوافق مع migration 016 */
 type TranscodeStatus = 'QUEUED' | 'TRANSCODING' | 'TRANSCODED' | 'TRANSCODE_FAILED';

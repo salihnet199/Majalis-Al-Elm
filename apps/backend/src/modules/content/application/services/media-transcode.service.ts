@@ -12,7 +12,7 @@
 import { InjectQueue } from '@nestjs/bullmq';
 import { Injectable, Logger } from '@nestjs/common';
 import { Queue } from 'bullmq';
-import { MEDIA_TRANSCODE_QUEUE, TranscodeJobData } from '../../../shared/infrastructure/queue/media-transcode.queue';
+import { MEDIA_TRANSCODE_QUEUE, TranscodeJobData } from '../../../../shared/infrastructure/queue/media-transcode.queue';
 
 @Injectable()
 export class MediaTranscodeService {
