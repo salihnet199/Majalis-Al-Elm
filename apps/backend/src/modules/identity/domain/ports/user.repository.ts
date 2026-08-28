@@ -37,6 +37,17 @@ export interface IUserRepository {
   /** Assign role to user */
   assignRole(userId: string, roleName: string): Promise<void>;
 
+  /**
+   * Count SuperAdmin users that are currently active:
+   *   - role = 'SuperAdmin'
+   *   - NOT deleted  (deleted_at IS NULL)
+   *   - NOT suspended (is_suspended = false)
+   *
+   * Used exclusively by the last-SuperAdmin guard to prevent lockout.
+   * "Active" means the account can actually log in and exercise control.
+   */
+  countActiveSuperAdmins(): Promise<number>;
+
   /** Get the primary role name for a user */
   getPrimaryRole(userId: string): Promise<string>;
 

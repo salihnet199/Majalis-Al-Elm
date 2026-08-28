@@ -11,6 +11,7 @@ import {
   HttpStatus,
   Req,
   BadRequestException,
+  ConflictException,
   NotFoundException,
   Inject,
 } from '@nestjs/common';
@@ -160,11 +161,11 @@ export class AdminSystemConfigController {
   async update(
     @Param('key') key: string,
     @Body() dto: UpdateSystemConfigDto,
-    @Req() req: Request & { user?: { sub: string; role: string } },
+    @Req() req: Request & { user: { sub: string; role: string } },
   ) {
     const updated = await this.configService.update(key, dto.value, {
-      id: req.user!.sub,
-      role: req.user!.role,
+      id: req.user.sub,
+      role: req.user.role,
       ipAddress: (req.headers['x-real-ip'] as string | undefined) ?? req.ip,
       userAgent: req.headers['user-agent'],
     });
@@ -302,6 +303,9 @@ export class AdminUsersController {
    * POST /admin/users/:id/suspend
    * Suspend a user account. Idempotent — already-suspended users return 200.
    * Domain method user.suspend() is called, followed by repo.update() + audit_log.
+   *
+   * Guard: 409 CONFLICT if the target is the last active SuperAdmin.
+   * Suspending the last SuperAdmin would lock out all administrative control.
    */
   @Post(':id/suspend')
   @HttpCode(HttpStatus.OK)
@@ -309,9 +313,10 @@ export class AdminUsersController {
   @ApiParam({ name: 'id', description: 'User UUID to suspend' })
   @ApiResponse({ status: 200, description: 'User suspended (or already suspended — idempotent)' })
   @ApiResponse({ status: 404, description: 'USER_NOT_FOUND' })
+  @ApiResponse({ status: 409, description: 'LAST_SUPERADMIN_PROTECTED — cannot suspend the last active SuperAdmin' })
   async suspendUser(
     @Param('id') id: string,
-    @Req() req: Request & { user?: { sub: string; role: string } },
+    @Req() req: Request & { user: { sub: string; role: string } },
   ) {
     const user = await this.userRepo.findById(id);
     if (!user || user.isDeleted) {
@@ -319,11 +324,28 @@ export class AdminUsersController {
     }
 
     if (!user.isSuspended) {
+      // ── Last-SuperAdmin guard ─────────────────────────────────────────────
+      // Only run the count check when the target is a SuperAdmin (avoid
+      // unnecessary DB round-trip for non-SuperAdmin users).
+      const targetRole = await this.userRepo.getPrimaryRole(id);
+      if (targetRole === 'SuperAdmin') {
+        const activeSuperAdmins = await this.userRepo.countActiveSuperAdmins();
+        if (activeSuperAdmins <= 1) {
+          throw new ConflictException({
+            code: 'LAST_SUPERADMIN_PROTECTED',
+            message:
+              'Cannot suspend the last active SuperAdmin. ' +
+              'Promote another user to SuperAdmin first.',
+          });
+        }
+      }
+      // ─────────────────────────────────────────────────────────────────────
+
       user.suspend(new Date());
       await this.userRepo.update(user);
       await this.auditLogService.log({
-        actorId: req.user!.sub,
-        actorRole: req.user!.role,
+        actorId: req.user.sub,
+        actorRole: req.user.role,
         action: AUDIT_ACTIONS.USER_SUSPEND,
         entityType: 'user',
         entityId: id,
@@ -352,7 +374,7 @@ export class AdminUsersController {
   @ApiResponse({ status: 404, description: 'USER_NOT_FOUND' })
   async unsuspendUser(
     @Param('id') id: string,
-    @Req() req: Request & { user?: { sub: string; role: string } },
+    @Req() req: Request & { user: { sub: string; role: string } },
   ) {
     const user = await this.userRepo.findById(id);
     if (!user || user.isDeleted) {
@@ -363,8 +385,8 @@ export class AdminUsersController {
       user.unsuspend();
       await this.userRepo.update(user);
       await this.auditLogService.log({
-        actorId: req.user!.sub,
-        actorRole: req.user!.role,
+        actorId: req.user.sub,
+        actorRole: req.user.role,
         action: AUDIT_ACTIONS.USER_UNSUSPEND,
         entityType: 'user',
         entityId: id,
@@ -386,6 +408,9 @@ export class AdminUsersController {
    * Assign a primary role to a user. SuperAdmin only.
    * Allowed assignable roles: User | Editor | Moderator | Admin.
    * SuperAdmin cannot be assigned via API — manual DB operation only.
+   *
+   * Guard: 409 CONFLICT if the target is a SuperAdmin being downgraded and
+   * they are the last active SuperAdmin in the system.
    */
   @Patch(':id/role')
   @Roles('SuperAdmin')
@@ -396,10 +421,11 @@ export class AdminUsersController {
   @ApiResponse({ status: 400, description: 'INVALID_ROLE' })
   @ApiResponse({ status: 403, description: 'FORBIDDEN — SuperAdmin required' })
   @ApiResponse({ status: 404, description: 'USER_NOT_FOUND' })
+  @ApiResponse({ status: 409, description: 'LAST_SUPERADMIN_PROTECTED — cannot downgrade the last active SuperAdmin' })
   async assignRole(
     @Param('id') id: string,
     @Body('role') role: string,
-    @Req() req: Request & { user?: { sub: string; role: string } },
+    @Req() req: Request & { user: { sub: string; role: string } },
   ) {
     const ALLOWED_ROLES = ['User', 'Editor', 'Moderator', 'Admin'];
     if (!role || !ALLOWED_ROLES.includes(role)) {
@@ -415,11 +441,28 @@ export class AdminUsersController {
     }
 
     const oldRole = await this.userRepo.getPrimaryRole(id);
+
+    // ── Last-SuperAdmin guard ───────────────────────────────────────────────
+    // Only relevant when downgrading FROM SuperAdmin to a lesser role.
+    // Assigning SuperAdmin or reassigning within the same tier is never blocked.
+    if (oldRole === 'SuperAdmin' && role !== 'SuperAdmin') {
+      const activeSuperAdmins = await this.userRepo.countActiveSuperAdmins();
+      if (activeSuperAdmins <= 1) {
+        throw new ConflictException({
+          code: 'LAST_SUPERADMIN_PROTECTED',
+          message:
+            'Cannot downgrade the last active SuperAdmin. ' +
+            'Promote another user to SuperAdmin first.',
+        });
+      }
+    }
+    // ───────────────────────────────────────────────────────────────────────
+
     await this.userRepo.assignRole(id, role);
 
     await this.auditLogService.log({
-      actorId: req.user!.sub,
-      actorRole: req.user!.role,
+      actorId: req.user.sub,
+      actorRole: req.user.role,
       action: AUDIT_ACTIONS.USER_ROLE_ASSIGN,
       entityType: 'user',
       entityId: id,

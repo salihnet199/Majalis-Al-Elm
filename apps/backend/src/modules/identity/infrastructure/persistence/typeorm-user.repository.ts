@@ -1,11 +1,10 @@
-import { Injectable, ConflictException } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { User } from '../../domain/user.entity';
 import { IUserRepository } from '../../domain/ports/user.repository';
 import { UserOrmEntity } from './entities/user.orm-entity';
-import { EmailAddress } from '../../../../shared/domain/email.vo';
-import { UUIDv7 } from '../../../../shared/domain/uuid.vo';
+
 
 /**
  * TypeOrmUserRepository — Infrastructure implementation of IUserRepository
@@ -148,6 +147,29 @@ export class TypeOrmUserRepository implements IUserRepository {
       [userId],
     );
     return result[0]?.name ?? 'User';
+  }
+
+  /**
+   * Count SuperAdmin users that are active (non-deleted, non-suspended).
+   *
+   * Used by the last-SuperAdmin guard in AdminUsersController to prevent
+   * accidental system lockout when the actor attempts to:
+   *   (a) downgrade the last SuperAdmin's role
+   *   (b) suspend the last SuperAdmin
+   *
+   * Single SQL round-trip; no domain object allocation needed.
+   */
+  async countActiveSuperAdmins(): Promise<number> {
+    const result = await this.repo.manager.query<[{ count: string }]>(
+      `SELECT COUNT(*)::text AS count
+       FROM id_users u
+       INNER JOIN id_user_roles ur ON ur.user_id = u.id
+       INNER JOIN id_roles r ON r.id = ur.role_id
+       WHERE r.name = 'SuperAdmin'
+         AND u.deleted_at IS NULL
+         AND u.is_suspended = false`,
+    );
+    return parseInt(result[0].count, 10);
   }
 
   /**

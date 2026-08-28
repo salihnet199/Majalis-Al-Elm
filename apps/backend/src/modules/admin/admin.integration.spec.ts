@@ -28,11 +28,19 @@
  *  18. Admin Users — Admin cannot assign role (403)
  *  19. Audit Log — paginated listing
  *  20. All admin routes — 401 without auth token
+ *
+ * Last-SuperAdmin Guard (BC05-GUARD):
+ *  T1. Role downgrade of last active SuperAdmin by a different actor → 409
+ *  T2. Role downgrade when 2 SuperAdmins exist → 200 (no block)
+ *  T3. Suspend of last active SuperAdmin → 409
+ *  T4. Suspend of SuperAdmin when 2 exist → 200 (no block)
+ *  T5. Unsuspend is never blocked by the guard → 200
+ *  T6. Assigning a non-SuperAdmin a role is never blocked → 200
+ *  T7. Self-downgrade: actor === target, last SuperAdmin → 409 (explicit)
  */
 
 import { Test, TestingModule } from '@nestjs/testing';
 import { INestApplication, ValidationPipe, CanActivate } from '@nestjs/common';
-// eslint-disable-next-line @typescript-eslint/no-require-imports
 import request = require('supertest');
 import { getRepositoryToken } from '@nestjs/typeorm';
 import { randomUUID } from 'crypto';
@@ -47,7 +55,6 @@ import { AuditLogOrmEntity } from './infrastructure/persistence/entities/audit-l
 import { SystemConfigOrmEntity } from './infrastructure/persistence/entities/system-config.orm-entity';
 import { USER_REPOSITORY } from '../identity/domain/ports/user.repository';
 import { User } from '../identity/domain/user.entity';
-import { JwtAuthGuard } from '../identity/presentation/guards/jwt-auth.guard';
 import { JwtRs256Adapter } from '../identity/infrastructure/adapters/jwt-rs256.adapter';
 import { JwtStrategy } from '../identity/infrastructure/adapters/jwt.strategy';
 import { GlobalExceptionFilter } from '../../shared/presentation/filters/global-exception.filter';
@@ -114,14 +121,13 @@ describe('BC05 Admin — Integration Tests', () => {
 
   // In-memory state
   let userDb: Map<string, User>;
-  let auditLogDb: AuditLogOrmEntity[];
-  let configDb: Map<string, SystemConfigOrmEntity>;
 
-  // Mocks
-  let mockUserRepo: jest.Mocked<any>;
-  let mockSystemConfigRepo: jest.Mocked<any>;
-  let mockAuditLogRepo: jest.Mocked<any>;
-  let mockDataSource: jest.Mocked<any>;
+  // Mocks — typed as Record<string, jest.Mock> to avoid explicit-any while
+  // preserving full dynamic mock flexibility needed in integration tests.
+  let mockUserRepo: Record<string, jest.Mock>;
+  let mockSystemConfigRepo: Record<string, jest.Mock>;
+  let mockAuditLogRepo: Record<string, jest.Mock>;
+  let mockDataSource: Record<string, jest.Mock>;
 
   // JWT helpers — generate test tokens with Admin / SuperAdmin / User roles
   let jwtAdapter: JwtRs256Adapter;
@@ -147,6 +153,7 @@ describe('BC05 Admin — Integration Tests', () => {
       update: jest.fn(),
       assignRole: jest.fn().mockResolvedValue(undefined),
       getPrimaryRole: jest.fn().mockResolvedValue('User'),
+      countActiveSuperAdmins: jest.fn().mockResolvedValue(1),
       findAllPaginated: jest.fn(),
     };
 
@@ -256,8 +263,6 @@ describe('BC05 Admin — Integration Tests', () => {
   beforeEach(() => {
     // Reset in-memory state
     userDb = new Map();
-    auditLogDb = [];
-    configDb = new Map(MOCK_CONFIG_ROWS.map((r) => [r.key, { ...r }]));
 
     jest.clearAllMocks();
 
@@ -270,6 +275,10 @@ describe('BC05 Admin — Integration Tests', () => {
     mockDataSource.getRepository.mockReturnValue({
       insert: jest.fn().mockResolvedValue(undefined),
     });
+
+    // Default: 1 active SuperAdmin — individual tests that need a different
+    // value (e.g. T2, T4) will override via setupSuperAdminTarget().
+    mockUserRepo.countActiveSuperAdmins.mockResolvedValue(1);
   });
 
   // ── 1. Analytics — overview ────────────────────────────────────────────────
@@ -413,8 +422,8 @@ describe('BC05 Admin — Integration Tests', () => {
     it('SuperAdmin can PATCH /admin/system/config/:key (200)', async () => {
       // Mock the TX in SystemConfigService.update()
       const updatedRow = { ...MOCK_CONFIG_ROWS[0], value: true, updatedAt: new Date() };
-      mockDataSource.transaction.mockImplementation(async (cb: (manager: any) => Promise<any>) => {
-        const fakeManager = {
+      mockDataSource.transaction.mockImplementation(async (cb: (manager: Record<string, jest.Mock>) => Promise<unknown>) => {
+        const fakeManager: Record<string, jest.Mock> = {
           findOne: jest.fn().mockResolvedValue(MOCK_CONFIG_ROWS[0]),
           update: jest.fn().mockResolvedValue(undefined),
         };
@@ -426,9 +435,9 @@ describe('BC05 Admin — Integration Tests', () => {
         return result;
       });
       // findOne after update inside TX
-      mockDataSource.transaction.mockImplementation(async (cb: (manager: any) => Promise<any>) => {
+      mockDataSource.transaction.mockImplementation(async (cb: (manager: Record<string, jest.Mock>) => Promise<unknown>) => {
         let callCount = 0;
-        const fakeManager = {
+        const fakeManager: Record<string, jest.Mock> = {
           findOne: jest.fn().mockImplementation(() => {
             callCount++;
             return callCount === 1 ? MOCK_CONFIG_ROWS[0] : updatedRow;
@@ -694,5 +703,185 @@ describe('BC05 Admin — Integration Tests', () => {
         .expect(401);
     });
 
+  });  // ── 7. Last-SuperAdmin Guard (BC05-GUARD) ─────────────────────────────────────
+
+  describe('7. Last-SuperAdmin Guard', () => {
+    // Shared SuperAdmin user used across guard scenarios
+    const LAST_SA_ID = randomUUID();
+    const SECOND_SA_ID = randomUUID();
+
+    /**
+     * Builds a SuperAdmin domain user and wires the necessary mock behaviour:
+     * - findById returns the target user
+     * - getPrimaryRole returns 'SuperAdmin' for the target
+     * - countActiveSuperAdmins returns `activeCount`
+     */
+    function setupSuperAdminTarget(
+      targetId: string,
+      activeCount: number,
+      opts: { isSuspended?: boolean } = {},
+    ) {
+      const superAdminUser = User.reconstitute({
+        id: targetId,
+        fullName: 'Last SuperAdmin',
+        email: 'last-sa@test.com',
+        phoneE164: null,
+        passwordHash: null,
+        locale: 'ar',
+        theme: 'system',
+        audioSpeed: 1.0,
+        isSuspended: opts.isSuspended ?? false,
+        suspendedAt: opts.isSuspended ? new Date() : null,
+        deletedAt: null,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      });
+
+      mockUserRepo.findById.mockImplementation(async (id: string) =>
+        id === targetId ? superAdminUser : null,
+      );
+      mockUserRepo.getPrimaryRole.mockImplementation(async (id: string) =>
+        id === targetId ? 'SuperAdmin' : 'User',
+      );
+      mockUserRepo.countActiveSuperAdmins.mockResolvedValue(activeCount);
+      mockUserRepo.update.mockImplementation(async (u: User) => u);
+      mockUserRepo.assignRole.mockResolvedValue(undefined);
+    }
+
+    // ── T1: Role downgrade of last SuperAdmin by a DIFFERENT actor → 409 ──
+
+    it('T1: blocks role downgrade of last active SuperAdmin (actor ≠ target) → 409', async () => {
+      // actor = SUPER_ADMIN_ID, target = LAST_SA_ID (a different user)
+      setupSuperAdminTarget(LAST_SA_ID, 1);
+
+      const res = await request(app.getHttpServer())
+        .patch(`/api/v1/admin/users/${LAST_SA_ID}/role`)
+        .set('Authorization', `Bearer ${superAdminToken}`)
+        .send({ role: 'Admin' })
+        .expect(409);
+
+      expect(res.body.error.code).toBe('LAST_SUPERADMIN_PROTECTED');
+      // assignRole must NOT have been called — DB stays unchanged
+      expect(mockUserRepo.assignRole).not.toHaveBeenCalled();
+    });
+
+    // ── T2: Role downgrade allowed when 2 SuperAdmins exist → 200 ────────
+
+    it('T2: allows role downgrade when 2 active SuperAdmins exist → 200', async () => {
+      setupSuperAdminTarget(LAST_SA_ID, 2); // 2 active SuperAdmins
+
+      const res = await request(app.getHttpServer())
+        .patch(`/api/v1/admin/users/${LAST_SA_ID}/role`)
+        .set('Authorization', `Bearer ${superAdminToken}`)
+        .send({ role: 'Admin' })
+        .expect(200);
+
+      expect(res.body.role).toBe('Admin');
+      expect(mockUserRepo.assignRole).toHaveBeenCalledWith(LAST_SA_ID, 'Admin');
+    });
+
+    // ── T3: Suspend of last SuperAdmin → 409 ────────────────────────────
+
+    it('T3: blocks suspend of last active SuperAdmin → 409', async () => {
+      setupSuperAdminTarget(LAST_SA_ID, 1);
+
+      const res = await request(app.getHttpServer())
+        .post(`/api/v1/admin/users/${LAST_SA_ID}/suspend`)
+        .set('Authorization', `Bearer ${superAdminToken}`)
+        .expect(409);
+
+      expect(res.body.error.code).toBe('LAST_SUPERADMIN_PROTECTED');
+      // Domain suspend() and repo.update() must NOT have been called
+      expect(mockUserRepo.update).not.toHaveBeenCalled();
+    });
+
+    // ── T4: Suspend of SuperAdmin when 2 exist → 200 ───────────────────
+
+    it('T4: allows suspend of a SuperAdmin when 2 active SuperAdmins exist → 200', async () => {
+      setupSuperAdminTarget(LAST_SA_ID, 2);
+
+      const res = await request(app.getHttpServer())
+        .post(`/api/v1/admin/users/${LAST_SA_ID}/suspend`)
+        .set('Authorization', `Bearer ${superAdminToken}`)
+        .expect(200);
+
+      expect(res.body.isSuspended).toBe(true);
+      expect(mockUserRepo.update).toHaveBeenCalled();
+    });
+
+    // ── T5: Unsuspend is NEVER blocked by the guard → 200 ──────────────
+
+    it('T5: unsuspend is never blocked by the last-SuperAdmin guard → 200', async () => {
+      // Target is a suspended SuperAdmin and the only one in the system
+      setupSuperAdminTarget(LAST_SA_ID, 1, { isSuspended: true });
+
+      const res = await request(app.getHttpServer())
+        .post(`/api/v1/admin/users/${LAST_SA_ID}/unsuspend`)
+        .set('Authorization', `Bearer ${superAdminToken}`)
+        .expect(200);
+
+      // Unsuspend proceeds unconditionally — no guard applies
+      expect(res.body.isSuspended).toBe(false);
+      expect(mockUserRepo.update).toHaveBeenCalled();
+      // countActiveSuperAdmins must NOT have been called during unsuspend
+      expect(mockUserRepo.countActiveSuperAdmins).not.toHaveBeenCalled();
+    });
+
+    // ── T6: Role assignment for non-SuperAdmin is never blocked → 200 ───
+
+    it('T6: assigning a role to a non-SuperAdmin is never blocked → 200', async () => {
+      // Target is a regular User (not a SuperAdmin)
+      const regularUser = User.reconstitute({
+        id: SECOND_SA_ID,
+        fullName: 'Regular User',
+        email: 'regular@test.com',
+        phoneE164: null,
+        passwordHash: null,
+        locale: 'ar',
+        theme: 'system',
+        audioSpeed: 1.0,
+        isSuspended: false,
+        suspendedAt: null,
+        deletedAt: null,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      });
+      mockUserRepo.findById.mockResolvedValue(regularUser);
+      mockUserRepo.getPrimaryRole.mockResolvedValue('User'); // NOT a SuperAdmin
+      mockUserRepo.assignRole.mockResolvedValue(undefined);
+
+      const res = await request(app.getHttpServer())
+        .patch(`/api/v1/admin/users/${SECOND_SA_ID}/role`)
+        .set('Authorization', `Bearer ${superAdminToken}`)
+        .send({ role: 'Editor' })
+        .expect(200);
+
+      expect(res.body.role).toBe('Editor');
+      // Guard should not trigger — countActiveSuperAdmins never called
+      expect(mockUserRepo.countActiveSuperAdmins).not.toHaveBeenCalled();
+    });
+
+    // ── T7: Self-downgrade — actor === target, last SuperAdmin → 409 ────
+    //
+    // This is the MOST DANGEROUS scenario in practice: a SuperAdmin
+    // inadvertently demoting themselves, leaving the system with zero
+    // active SuperAdmins. The guard must catch this regardless of
+    // whether actor === target or actor ≠ target.
+
+    it('T7: blocks self-downgrade when actor === target is the last active SuperAdmin → 409', async () => {
+      // The actor's own ID is used as the target ID
+      setupSuperAdminTarget(SUPER_ADMIN_ID, 1);
+
+      const res = await request(app.getHttpServer())
+        .patch(`/api/v1/admin/users/${SUPER_ADMIN_ID}/role`) // actor = target = SUPER_ADMIN_ID
+        .set('Authorization', `Bearer ${superAdminToken}`)
+        .send({ role: 'Admin' })
+        .expect(409);
+
+      expect(res.body.error.code).toBe('LAST_SUPERADMIN_PROTECTED');
+      expect(mockUserRepo.assignRole).not.toHaveBeenCalled();
+    });
+
   });
+
 });
