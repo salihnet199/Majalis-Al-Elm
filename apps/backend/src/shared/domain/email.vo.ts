@@ -25,7 +25,7 @@ export class EmailAddress {
 
   static isValid(email: string): boolean {
     // RFC 5322 simplified — rejects clearly invalid addresses
-    const regex = /^[a-z0-9._%+\-]+@[a-z0-9.\-]+\.[a-z]{2,}$/i;
+    const regex = /^[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}$/i;
     return regex.test(email) && email.length <= 254;
   }
 

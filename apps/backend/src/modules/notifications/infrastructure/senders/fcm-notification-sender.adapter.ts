@@ -184,7 +184,11 @@ export class FcmNotificationSenderAdapter implements NotificationSenderPort, OnM
                 this.logger.warn(`[FCM] Removing stale/unregistered token from user devices: ${staleToken.slice(0, 10)}...`);
                 const deviceToRemove = devices.find((d) => d.fcmToken === staleToken);
                 if (deviceToRemove) {
-                  this.deviceService.deleteDevice(deviceToRemove.id, { sub: notification.userId } as any).catch(() => {});
+                  // Best-effort cleanup — a failed deletion here shouldn't
+                  // interrupt notification dispatch for the remaining tokens.
+                  this.deviceService
+                    .deleteDevice(deviceToRemove.id, { sub: notification.userId } as any)
+                    .catch(() => undefined);
                 }
               }
             }

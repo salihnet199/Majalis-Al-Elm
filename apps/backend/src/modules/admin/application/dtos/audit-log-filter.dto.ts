@@ -30,12 +30,12 @@ export class AuditLogFilterDto {
   @Type(() => Number)
   @IsInt()
   @Min(1)
-  page: number = 1;
+  page = 1;
 
   @IsOptional()
   @Type(() => Number)
   @IsInt()
   @Min(1)
   @Max(100)
-  limit: number = 50;
+  limit = 50;
 }

@@ -53,7 +53,7 @@ export class ContentController {
     @Query('cursor') cursor?: string,
     @Query('type') type?: ContentType,
     @Query('category') category?: string,
-    @Query('locale') locale: string = 'ar',
+    @Query('locale') locale = 'ar',
   ) {
     const limit = Math.min(Math.max(parseInt(limitStr || '20', 10), 1), 100);
     const result = await this.contentItemRepo.findPublished({
@@ -151,7 +151,7 @@ export class ContentController {
   @Get('categories')
   @ApiOperation({ summary: 'List all categories in a flat structure' })
   @ApiResponse({ status: 200, description: 'Flat list of all categories' })
-  async listCategories(@Query('locale') locale: string = 'ar') {
+  async listCategories(@Query('locale') locale = 'ar') {
     const categories = await this.categoryRepo.findAll();
     const catIds = categories.map((c) => c.id.value);
 
@@ -187,7 +187,7 @@ export class ContentController {
   @ApiResponse({ status: 200, description: 'Category and its direct children' })
   async getCategoryBySlug(
     @Param('slug') slug: string,
-    @Query('locale') locale: string = 'ar',
+    @Query('locale') locale = 'ar',
   ) {
     const cat = await this.categoryRepo.findBySlug(slug);
     if (!cat) {
@@ -237,7 +237,7 @@ export class ContentController {
   @Get('tags')
   @ApiOperation({ summary: 'List all tags' })
   @ApiResponse({ status: 200, description: 'List of tags' })
-  async listTags(@Query('locale') locale: string = 'ar') {
+  async listTags(@Query('locale') locale = 'ar') {
     const tags = await this.tagRepo.findAll();
     const tagIds = tags.map((t) => t.id.value);
 
@@ -312,7 +312,7 @@ export class ContentController {
   @ApiResponse({ status: 200, description: 'Content item details' })
   async getContentBySlug(
     @Param('slug') slug: string,
-    @Query('locale') locale: string = 'ar',
+    @Query('locale') locale = 'ar',
   ) {
     const item = await this.contentItemRepo.findBySlug(slug);
     if (!item || item.status !== 'PUBLISHED') {
@@ -322,8 +322,9 @@ export class ContentController {
       });
     }
 
-    // Fire-and-forget view count increment
-    this.contentItemRepo.incrementViewCount(item.id.value).catch(() => {});
+    // Fire-and-forget view count increment — failures here must never affect
+    // the response the reader gets, so the rejection is deliberately swallowed.
+    this.contentItemRepo.incrementViewCount(item.id.value).catch(() => undefined);
 
     // Fetch translations for this content item
     const itemTranslations = await this.translationRepo.find({

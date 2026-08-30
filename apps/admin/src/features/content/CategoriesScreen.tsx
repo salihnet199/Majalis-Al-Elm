@@ -186,7 +186,7 @@ export const CategoriesScreen: React.FC = () => {
       dataIndex: 'contentCount',
       key: 'contentCount',
       width: 170,
-      render: (count: number = 0) => (
+      render: (count = 0) => (
         <Tag
           color={count > 0 ? 'gold' : 'default'}
           className="font-cairo font-semibold px-2.5 py-0.5 rounded-full"

@@ -163,9 +163,9 @@ export class AdminTaxonomyController {
   @ApiOperation({ summary: 'List authors with offset pagination' })
   @ApiResponse({ status: 200, description: 'Authors list' })
   async listAuthors(
-    @Query('page') pageStr: string = '1',
-    @Query('limit') limitStr: string = '25',
-    @Query('locale') locale: string = 'ar',
+    @Query('page') pageStr = '1',
+    @Query('limit') limitStr = '25',
+    @Query('locale') locale = 'ar',
   ) {
     const page = Math.max(parseInt(pageStr, 10) || 1, 1);
     const limit = Math.min(Math.max(parseInt(limitStr, 10) || 25, 1), 100);
