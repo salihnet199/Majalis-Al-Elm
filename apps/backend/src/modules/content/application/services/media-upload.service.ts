@@ -5,6 +5,7 @@ import {
   Injectable,
   Logger,
   NotFoundException,
+  Optional,
   UnprocessableEntityException,
 } from '@nestjs/common';
 import { UUIDv7 } from '../../../../shared/domain/uuid.vo';
@@ -59,6 +60,7 @@ export class MediaUploadService {
     @Inject(STORAGE_SERVICE) private readonly storage: IStorageService,
     // Optional: BullMQ not available when REDIS_URL is absent (e.g. unit tests).
     // When present, complete() enqueues a transcode job after confirming upload.
+    @Optional()
     @Inject(MediaTranscodeService)
     private readonly transcodeService: MediaTranscodeService | null,
   ) {}
