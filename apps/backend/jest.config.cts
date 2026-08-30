@@ -1,3 +1,8 @@
+// Ensure NODE_ENV=test is always set so JwtRs256Adapter activates its
+// HS256 test-only fallback when no RSA keys are configured.
+// Without this, tests fail non-deterministically depending on shell environment.
+process.env.NODE_ENV = process.env.NODE_ENV || 'test';
+
 module.exports = {
   displayName: 'backend',
   preset: '../../jest.preset.js',
