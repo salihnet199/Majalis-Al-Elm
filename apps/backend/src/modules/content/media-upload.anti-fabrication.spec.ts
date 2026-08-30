@@ -36,7 +36,6 @@ import { JwtModule } from '@nestjs/jwt';
 import { PassportModule } from '@nestjs/passport';
 import { Test, TestingModule } from '@nestjs/testing';
 import { createHash, randomUUID } from 'crypto';
-// eslint-disable-next-line @typescript-eslint/no-require-imports
 import request = require('supertest');
 
 import { JwtRs256Adapter } from '../identity/infrastructure/adapters/jwt-rs256.adapter';

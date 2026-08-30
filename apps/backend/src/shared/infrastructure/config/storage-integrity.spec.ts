@@ -417,7 +417,6 @@ describe('no bypass exists', () => {
     // Order is the property under test: the guard must run before anything can
     // bind a port or serve a request, so a misconfigured server never has a
     // window in which it looks healthy.
-    // eslint-disable-next-line @typescript-eslint/no-var-requires
     const main = require('fs').readFileSync(require.resolve('../../../main.ts'), 'utf8') as string;
 
     // Matched as statements, not as text: `NestFactory.create()` also appears in

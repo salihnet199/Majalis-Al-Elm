@@ -37,7 +37,6 @@ import { INestApplication, ValidationPipe, ExecutionContext, CanActivate } from 
 import { Test, TestingModule } from '@nestjs/testing';
 import { getRepositoryToken, TypeOrmModule } from '@nestjs/typeorm';
 import { DataSource } from 'typeorm';
-// eslint-disable-next-line @typescript-eslint/no-require-imports
 import request = require('supertest');
 import { randomUUID } from 'crypto';
 

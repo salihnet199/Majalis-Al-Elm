@@ -29,7 +29,6 @@
 import { INestApplication, ValidationPipe, ExecutionContext, CanActivate } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
-// eslint-disable-next-line @typescript-eslint/no-require-imports
 import request = require('supertest');
 import { randomUUID } from 'crypto';
 
@@ -334,9 +333,7 @@ describe('POLICY-SEC-001: admin writes require a real authenticated actor', () =
     // A new admin write handler that forgets the helper is the failure this suite
     // cannot otherwise see: it would simply not be in CALL_SITES. Counting the
     // call sites in the source turns that omission into a red test.
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
     const { readFileSync } = require('fs');
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
     const { resolve } = require('path');
 
     const sources = ['admin-content.controller.ts', 'admin-taxonomy.controller.ts'].map((file) =>

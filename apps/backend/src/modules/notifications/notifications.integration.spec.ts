@@ -15,7 +15,6 @@
 
 import { Test, TestingModule } from '@nestjs/testing';
 import { INestApplication, ValidationPipe, CanActivate } from '@nestjs/common';
-// eslint-disable-next-line @typescript-eslint/no-require-imports
 import request = require('supertest');
 import { getRepositoryToken } from '@nestjs/typeorm';
 import { DataSource } from 'typeorm';

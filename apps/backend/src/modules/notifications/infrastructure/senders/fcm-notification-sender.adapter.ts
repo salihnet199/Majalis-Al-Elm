@@ -11,7 +11,6 @@ import { DeviceService } from '../../application/device.service';
 
 let admin: any = null;
 try {
-  // eslint-disable-next-line @typescript-eslint/no-var-requires
   admin = require('firebase-admin');
 } catch {
   // Graceful fallback if package is loading
@@ -65,7 +64,6 @@ export class FcmNotificationSenderAdapter implements NotificationSenderPort, OnM
           if (admin.credential && typeof admin.credential.cert === 'function') {
             credential = admin.credential.cert(serviceAccount);
           } else {
-            // eslint-disable-next-line @typescript-eslint/no-var-requires
             const { cert } = require('firebase-admin/app');
             credential = cert(serviceAccount);
           }
@@ -88,7 +86,6 @@ export class FcmNotificationSenderAdapter implements NotificationSenderPort, OnM
         if (admin.credential && typeof admin.credential.cert === 'function') {
           credential = admin.credential.cert(inlineConfig);
         } else {
-          // eslint-disable-next-line @typescript-eslint/no-var-requires
           const { cert } = require('firebase-admin/app');
           credential = cert(inlineConfig);
         }

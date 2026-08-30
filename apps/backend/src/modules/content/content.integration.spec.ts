@@ -27,7 +27,6 @@
 
 import { Test, TestingModule } from '@nestjs/testing';
 import { INestApplication, ValidationPipe, CanActivate, ExecutionContext } from '@nestjs/common';
-// eslint-disable-next-line @typescript-eslint/no-require-imports
 import request = require('supertest');
 import { getRepositoryToken } from '@nestjs/typeorm';
 import { createHash, randomUUID } from 'crypto';
