@@ -270,7 +270,7 @@ describe('BC04 Notifications Module — Integration Tests', () => {
             if (params?.userId) filterUserId = params.userId;
             return qb;
           }),
-          andWhere: jest.fn((clause: string, params: any) => {
+          andWhere: jest.fn((clause: string) => {
             if (clause.includes('status IN')) unreadFilter = true;
             return qb;
           }),
@@ -500,7 +500,7 @@ describe('BC04 Notifications Module — Integration Tests', () => {
     expect(devicesStore.length).toBe(1);
 
     // Second registration with same token for same user
-    const res2 = await request(app.getHttpServer())
+    await request(app.getHttpServer())
       .post('/notifications/devices')
       .set('Authorization', `Bearer ${user1Token}`)
       .send({

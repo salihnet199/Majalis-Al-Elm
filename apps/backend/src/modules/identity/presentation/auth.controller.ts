@@ -17,10 +17,10 @@ import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagg
 import { Throttle } from '@nestjs/throttler';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import { createHash, randomBytes, randomUUID } from 'crypto';
+import { createHash, randomUUID } from 'crypto';
 import { Request } from 'express';
 import { RegisterWithEmailDto } from '../application/dtos/register-email.dto';
-import { LoginEmailDto, RefreshTokenDto, LogoutDto, ChangePasswordDto, SocialLoginDto } from '../application/dtos/auth.dto';
+import { LoginEmailDto, RefreshTokenDto, LogoutDto, ChangePasswordDto } from '../application/dtos/auth.dto';
 import { IUserRepository, USER_REPOSITORY } from '../domain/ports/user.repository';
 import { IPasswordHasher, PASSWORD_HASHER } from '../infrastructure/adapters/bcrypt.adapter';
 import { User } from '../domain/user.entity';

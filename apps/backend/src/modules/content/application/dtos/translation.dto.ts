@@ -1,7 +1,5 @@
 import { IsString, IsIn, IsOptional, MinLength, MaxLength } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
-import { Type } from 'class-transformer';
-import { ValidateNested } from 'class-validator';
 
 export const SUPPORTED_LOCALES = ['ar', 'en', 'fr', 'ur', 'ms'] as const;
 export type SupportedLocale = typeof SUPPORTED_LOCALES[number];

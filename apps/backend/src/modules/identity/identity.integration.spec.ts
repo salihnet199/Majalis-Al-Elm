@@ -29,7 +29,6 @@ import { randomUUID } from 'crypto';
 import { createHash } from 'crypto';
 
 import { AuthController } from './presentation/auth.controller';
-import { JwtAuthGuard } from './presentation/guards/jwt-auth.guard';
 import { JwtRs256Adapter } from './infrastructure/adapters/jwt-rs256.adapter';
 import { JwtStrategy } from './infrastructure/adapters/jwt.strategy';
 import { BcryptAdapter, PASSWORD_HASHER } from './infrastructure/adapters/bcrypt.adapter';
@@ -37,8 +36,6 @@ import { USER_REPOSITORY } from './domain/ports/user.repository';
 import { RefreshTokenOrmEntity } from './infrastructure/persistence/entities/refresh-token.orm-entity';
 import { SocialIdentityOrmEntity } from './infrastructure/persistence/entities/social-identity.orm-entity';
 import { User } from './domain/user.entity';
-import { EmailAddress } from '../../shared/domain/email.vo';
-import { UUIDv7 } from '../../shared/domain/uuid.vo';
 import { GlobalExceptionFilter } from '../../shared/presentation/filters/global-exception.filter';
 import { TraceIdInterceptor } from '../../shared/presentation/interceptors/trace-id.interceptor';
 
@@ -533,7 +530,6 @@ describe('BC01 Identity — Integration Tests', () => {
 
     it('blocks LOGIN for suspended user with AUTH_ACCOUNT_SUSPENDED', async () => {
       const hash = await bcrypt.hash(SUSPENDED_PASS, 1);
-      const existingUser = userDb.get(suspendedUserId)!;
       // Re-create with password hash (save() doesn't persist it in mock without explicit set)
       const userWithHash = makeUser({
         id: suspendedUserId,
@@ -708,7 +704,6 @@ describe('BC01 Identity — Integration Tests', () => {
 
       // Store password hash so findByIdWithPassword can return it
       const hash = await bcrypt.hash(OLD_PASS, 1);
-      const user = userDb.get(userId)!;
       const userWithHash = makeUser({
         id: userId,
         email: EMAIL,

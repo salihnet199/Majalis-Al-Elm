@@ -4,7 +4,6 @@ import {
   Column,
   CreateDateColumn,
 } from 'typeorm';
-import { randomUUID } from 'crypto';
 
 /**
  * AuditLogOrmEntity — maps ad_audit_log (Migration 040)

@@ -35,7 +35,7 @@
 
 import { INestApplication, ValidationPipe, ExecutionContext, CanActivate } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
-import { getRepositoryToken, TypeOrmModule } from '@nestjs/typeorm';
+import { TypeOrmModule } from '@nestjs/typeorm';
 import { DataSource } from 'typeorm';
 import request = require('supertest');
 import { randomUUID } from 'crypto';
