@@ -26,7 +26,7 @@
  */
 
 import { Test, TestingModule } from '@nestjs/testing';
-import { INestApplication, ValidationPipe, CanActivate, ExecutionContext } from '@nestjs/common';
+import { INestApplication, ValidationPipe, CanActivate } from '@nestjs/common';
 import request = require('supertest');
 import { getRepositoryToken } from '@nestjs/typeorm';
 import { createHash, randomUUID } from 'crypto';
@@ -40,7 +40,6 @@ import { AdminContentController } from './presentation/admin-content.controller'
 import { AdminTaxonomyController } from './presentation/admin-taxonomy.controller';
 import { AdminMediaController } from './presentation/admin-media.controller';
 import { RolesGuard } from './presentation/guards/roles.guard';
-import { JwtAuthGuard } from '../identity/presentation/guards/jwt-auth.guard';
 import { JwtStrategy } from '../identity/infrastructure/adapters/jwt.strategy';
 import { JwtRs256Adapter } from '../identity/infrastructure/adapters/jwt-rs256.adapter';
 
@@ -61,10 +60,7 @@ import { MediaAsset } from './domain/media-asset.entity';
 import { UUIDv7 } from '../../shared/domain/uuid.vo';
 
 import { ContentItemOrmEntity } from './infrastructure/persistence/entities/content-item.orm-entity';
-import { CategoryOrmEntity } from './infrastructure/persistence/entities/category.orm-entity';
-import { AuthorOrmEntity } from './infrastructure/persistence/entities/author.orm-entity';
 import { TagOrmEntity } from './infrastructure/persistence/entities/tag.orm-entity';
-import { MediaAssetOrmEntity } from './infrastructure/persistence/entities/media-asset.orm-entity';
 import { TranslationOrmEntity } from './infrastructure/persistence/entities/translation.orm-entity';
 
 import { GlobalExceptionFilter } from '../../shared/presentation/filters/global-exception.filter';
@@ -264,7 +260,18 @@ describe('BC02 Content Module — Integration Tests', () => {
         let results = [...translationsStore];
         if (opts?.where) {
           if (opts.where.entityType) results = results.filter((r) => r.entityType === opts.where.entityType);
-          if (opts.where.entityId) results = results.filter((r) => r.entityId === opts.where.entityId);
+          if (opts.where.entityId) {
+            const entityIdFilter = opts.where.entityId;
+            // Support both a plain string equality match and TypeORM's In()
+            // FindOperator ({ type: 'in', value: [...] }), which the real
+            // controller now uses to scope translation lookups to a set of ids.
+            if (entityIdFilter && typeof entityIdFilter === 'object' && entityIdFilter.type === 'in') {
+              const allowed = new Set(entityIdFilter.value);
+              results = results.filter((r) => allowed.has(r.entityId));
+            } else {
+              results = results.filter((r) => r.entityId === entityIdFilter);
+            }
+          }
           if (opts.where.locale) results = results.filter((r) => r.locale === opts.where.locale);
         }
         return results;

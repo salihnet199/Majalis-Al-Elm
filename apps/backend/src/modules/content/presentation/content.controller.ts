@@ -1,10 +1,10 @@
 import {
   Controller, Get, Param, Query, NotFoundException,
-  UnprocessableEntityException, UseGuards, Req,
+  UnprocessableEntityException, UseGuards,
 } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagger';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, IsNull } from 'typeorm';
+import { In, Repository } from 'typeorm';
 import { Inject } from '@nestjs/common';
 import {
   IContentItemRepository,
@@ -67,7 +67,7 @@ export class ContentController {
     const itemIds = result.items.map((i) => i.id.value);
     const translations = itemIds.length > 0
       ? await this.translationRepo.find({
-          where: { entityType: 'content_item', locale },
+          where: { entityType: 'content_item', entityId: In(itemIds), locale },
         })
       : [];
 
@@ -157,7 +157,7 @@ export class ContentController {
 
     const translations = catIds.length > 0
       ? await this.translationRepo.find({
-          where: { entityType: 'category', locale },
+          where: { entityType: 'category', entityId: In(catIds), locale },
         })
       : [];
 
@@ -201,7 +201,7 @@ export class ContentController {
     const allIds = [cat.id.value, ...children.map((c) => c.id.value)];
 
     const translations = await this.translationRepo.find({
-      where: { entityType: 'category', locale },
+      where: { entityType: 'category', entityId: In(allIds), locale },
     });
 
     const transMap = new Map<string, Record<string, string>>();
@@ -243,7 +243,7 @@ export class ContentController {
 
     const translations = tagIds.length > 0
       ? await this.translationRepo.find({
-          where: { entityType: 'tag', locale },
+          where: { entityType: 'tag', entityId: In(tagIds), locale },
         })
       : [];
 
