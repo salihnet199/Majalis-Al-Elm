@@ -350,16 +350,20 @@ CREATE TABLE eg_comment_votes (
 -- Migration: 022_engagement_qa.sql
 
 CREATE TABLE eg_questions (
-  id          UUID                 PRIMARY KEY DEFAULT uuid_generate_v7(),
-  content_id  UUID,                -- Cross-BC — اختياري
-  user_id     UUID                 NOT NULL REFERENCES id_users(id),
-  title       VARCHAR(500)         NOT NULL CHECK (char_length(title) BETWEEN 5 AND 500),
-  body        TEXT                 CHECK (body IS NULL OR char_length(body) <= 5000),
-  status      eg_moderation_status NOT NULL DEFAULT 'PENDING',
-  is_answered BOOLEAN              NOT NULL DEFAULT FALSE,
-  deleted_at  TIMESTAMPTZ,
-  created_at  TIMESTAMPTZ          NOT NULL DEFAULT NOW(),
-  updated_at  TIMESTAMPTZ          NOT NULL DEFAULT NOW()
+  id            UUID                 PRIMARY KEY DEFAULT uuid_generate_v7(),
+  content_id    UUID,                -- Cross-BC — اختياري
+  user_id       UUID                 NOT NULL REFERENCES id_users(id),
+  title         VARCHAR(500)         NOT NULL CHECK (char_length(title) BETWEEN 5 AND 500),
+  body          TEXT                 CHECK (body IS NULL OR char_length(body) <= 5000),
+  status        eg_moderation_status NOT NULL DEFAULT 'PENDING',
+  is_answered   BOOLEAN              NOT NULL DEFAULT FALSE,
+  moderated_by  UUID                 REFERENCES id_users(id),  -- added in 043_engagement_questions_moderation_audit.sql
+  moderated_at  TIMESTAMPTZ,                                   -- added in 043_engagement_questions_moderation_audit.sql
+  deleted_at    TIMESTAMPTZ,
+  created_at    TIMESTAMPTZ          NOT NULL DEFAULT NOW(),
+  updated_at    TIMESTAMPTZ          NOT NULL DEFAULT NOW(),
+  CONSTRAINT chk_eg_questions_moderation                       -- added in 043_engagement_questions_moderation_audit.sql
+    CHECK (status = 'PENDING' OR moderated_by IS NOT NULL)
 );
 
 CREATE TABLE eg_answers (

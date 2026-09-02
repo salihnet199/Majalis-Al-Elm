@@ -33,6 +33,12 @@ export class QuestionOrmEntity {
   @Column({ name: 'is_answered', type: 'boolean', default: false })
   isAnswered!: boolean;
 
+  @Column({ name: 'moderated_by', type: 'uuid', nullable: true })
+  moderatedBy!: string | null;
+
+  @Column({ name: 'moderated_at', type: 'timestamptz', nullable: true })
+  moderatedAt!: Date | null;
+
   @Column({ name: 'deleted_at', type: 'timestamptz', nullable: true })
   deletedAt!: Date | null;
 

@@ -160,7 +160,7 @@ export class QuestionService {
   async moderate(
     questionId: string,
     newStatus: 'APPROVED' | 'REJECTED',
-    _moderatorId: string,
+    moderatorId: string,
   ): Promise<object> {
     const question = await this.questionRepo.findOne({
       where: { id: questionId, deletedAt: IsNull() },
@@ -171,6 +171,8 @@ export class QuestionService {
 
     await this.questionRepo.update(questionId, {
       status: newStatus,
+      moderatedBy: moderatorId,
+      moderatedAt: new Date(),
       updatedAt: new Date(),
     });
 
@@ -188,6 +190,8 @@ export class QuestionService {
       userId: q.userId,
       isAnswered: q.isAnswered,
       status: q.status,
+      moderatedBy: q.moderatedBy,
+      moderatedAt: q.moderatedAt,
       createdAt: q.createdAt,
       updatedAt: q.updatedAt,
     };
