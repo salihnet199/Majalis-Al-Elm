@@ -49,6 +49,21 @@ export default [
             "**/*.mjs"
         ],
         // Override or add rules here
-        rules: {}
+        rules: {
+            // Convention already used in this codebase (interface-mandated
+            // unused params like CanActivate's `context`, or a discarded
+            // value from destructuring): prefixing with `_` signals "this is
+            // intentionally unused" and should be recognized as such instead
+            // of requiring a per-line eslint-disable comment.
+            "@typescript-eslint/no-unused-vars": [
+                "warn",
+                {
+                    argsIgnorePattern: "^_",
+                    varsIgnorePattern: "^_",
+                    caughtErrorsIgnorePattern: "^_",
+                    destructuredArrayIgnorePattern: "^_"
+                }
+            ]
+        }
     }
 ];
