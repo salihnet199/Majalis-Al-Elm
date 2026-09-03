@@ -73,8 +73,9 @@ export class ContentController {
 
     const transMap = new Map<string, Record<string, string>>();
     for (const t of translations) {
-      if (!transMap.has(t.entityId)) transMap.set(t.entityId, {});
-      transMap.get(t.entityId)![t.fieldName] = t.content;
+      const bucket = transMap.get(t.entityId) ?? {};
+      bucket[t.fieldName] = t.content;
+      transMap.set(t.entityId, bucket);
     }
 
     const data = await Promise.all(
@@ -163,8 +164,9 @@ export class ContentController {
 
     const transMap = new Map<string, Record<string, string>>();
     for (const t of translations) {
-      if (!transMap.has(t.entityId)) transMap.set(t.entityId, {});
-      transMap.get(t.entityId)![t.fieldName] = t.content;
+      const bucket = transMap.get(t.entityId) ?? {};
+      bucket[t.fieldName] = t.content;
+      transMap.set(t.entityId, bucket);
     }
 
     const data = categories.map((cat) => {
@@ -206,8 +208,9 @@ export class ContentController {
 
     const transMap = new Map<string, Record<string, string>>();
     for (const t of translations) {
-      if (!transMap.has(t.entityId)) transMap.set(t.entityId, {});
-      transMap.get(t.entityId)![t.fieldName] = t.content;
+      const bucket = transMap.get(t.entityId) ?? {};
+      bucket[t.fieldName] = t.content;
+      transMap.set(t.entityId, bucket);
     }
 
     const catTrans = transMap.get(cat.id.value) || {};
@@ -249,8 +252,9 @@ export class ContentController {
 
     const transMap = new Map<string, Record<string, string>>();
     for (const t of translations) {
-      if (!transMap.has(t.entityId)) transMap.set(t.entityId, {});
-      transMap.get(t.entityId)![t.fieldName] = t.content;
+      const bucket = transMap.get(t.entityId) ?? {};
+      bucket[t.fieldName] = t.content;
+      transMap.set(t.entityId, bucket);
     }
 
     const data = tags.map((tag) => {

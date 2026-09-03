@@ -134,8 +134,9 @@ export class AdminContentController {
         },
       });
       for (const t of translations) {
-        if (!titles.has(t.entityId)) titles.set(t.entityId, {});
-        titles.get(t.entityId)![t.locale] = t.content;
+        const bucket = titles.get(t.entityId) ?? {};
+        bucket[t.locale] = t.content;
+        titles.set(t.entityId, bucket);
       }
     }
 
@@ -199,8 +200,9 @@ export class AdminContentController {
     // no fallback to the slug: a missing title must look missing in the form.
     const byLocale = new Map<string, Record<string, string>>();
     for (const row of rows) {
-      if (!byLocale.has(row.locale)) byLocale.set(row.locale, {});
-      byLocale.get(row.locale)![row.fieldName] = row.content;
+      const bucket = byLocale.get(row.locale) ?? {};
+      bucket[row.fieldName] = row.content;
+      byLocale.set(row.locale, bucket);
     }
 
     return {

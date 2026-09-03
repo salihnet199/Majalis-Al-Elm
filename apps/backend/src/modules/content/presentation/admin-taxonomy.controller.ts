@@ -5,7 +5,7 @@ import {
 } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagger';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { In, Repository } from 'typeorm';
 import { JwtPayload } from '../../identity/infrastructure/adapters/jwt-rs256.adapter';
 import { JwtAuthGuard } from '../../identity/presentation/guards/jwt-auth.guard';
 import { requireActorId } from './require-actor-id';
@@ -176,14 +176,15 @@ export class AdminTaxonomyController {
 
     const translations = authorIds.length > 0
       ? await this.translationRepo.find({
-          where: { entityType: 'author', locale },
+          where: { entityType: 'author', entityId: In(authorIds), locale },
         })
       : [];
 
     const transMap = new Map<string, Record<string, string>>();
     for (const t of translations) {
-      if (!transMap.has(t.entityId)) transMap.set(t.entityId, {});
-      transMap.get(t.entityId)![t.fieldName] = t.content;
+      const bucket = transMap.get(t.entityId) ?? {};
+      bucket[t.fieldName] = t.content;
+      transMap.set(t.entityId, bucket);
     }
 
     const data = items.map((author) => {
