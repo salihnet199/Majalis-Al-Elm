@@ -71,7 +71,10 @@ export class TypeOrmCategoryRepository implements ICategoryRepository {
       updatedAt: category.updatedAt,
     });
     const updated = await this.findById(category.id.value);
-    return updated!;
+    if (!updated) {
+      throw new Error(`Category ${category.id.value} vanished immediately after update() succeeded`);
+    }
+    return updated;
   }
 
   async softDelete(category: Category): Promise<void> {

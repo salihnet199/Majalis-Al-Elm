@@ -138,7 +138,10 @@ export class TypeOrmContentItemRepository implements IContentItemRepository {
       updatedAt: item.updatedAt,
     });
     const updated = await this.findById(item.id.value);
-    return updated!;
+    if (!updated) {
+      throw new Error(`ContentItem ${item.id.value} vanished immediately after update() succeeded`);
+    }
+    return updated;
   }
 
   async softDelete(item: ContentItem): Promise<void> {

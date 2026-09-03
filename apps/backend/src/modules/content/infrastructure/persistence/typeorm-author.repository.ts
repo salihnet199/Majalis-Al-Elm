@@ -72,7 +72,10 @@ export class TypeOrmAuthorRepository implements IAuthorRepository {
       updatedAt: author.updatedAt,
     });
     const updated = await this.findById(author.id.value);
-    return updated!;
+    if (!updated) {
+      throw new Error(`Author ${author.id.value} vanished immediately after update() succeeded`);
+    }
+    return updated;
   }
 
   async softDelete(author: Author): Promise<void> {

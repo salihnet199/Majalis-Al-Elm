@@ -177,7 +177,10 @@ export class QuestionService {
     });
 
     const updated = await this.questionRepo.findOne({ where: { id: questionId } });
-    return this.toQuestionResponse(updated!);
+    if (!updated) {
+      throw new Error(`Question ${questionId} vanished immediately after moderate() update succeeded`);
+    }
+    return this.toQuestionResponse(updated);
   }
 
   // ── helpers ───────────────────────────────────────────────────────────────

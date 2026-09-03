@@ -69,7 +69,10 @@ export class TypeOrmMediaAssetRepository implements IMediaAssetRepository {
       updatedAt: asset.updatedAt,
     });
     const updated = await this.findById(asset.id.value);
-    return updated!;
+    if (!updated) {
+      throw new Error(`MediaAsset ${asset.id.value} vanished immediately after update() succeeded`);
+    }
+    return updated;
   }
 
   private toDomain(orm: MediaAssetOrmEntity): MediaAsset {
