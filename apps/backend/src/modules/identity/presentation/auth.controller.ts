@@ -271,8 +271,8 @@ export class AuthController {
   @ApiOperation({ summary: 'Get current authenticated user profile' })
   @ApiResponse({ status: 200, description: 'User profile' })
   @ApiResponse({ status: 401, description: 'AUTH_MISSING_TOKEN — no or invalid Bearer token' })
-  async getMe(@Req() req: Request & { user?: { sub: string; email: string | null; role: string } }) {
-    const user = await this.userRepo.findById(req.user!.sub);
+  async getMe(@Req() req: Request & { user: { sub: string; email: string | null; role: string } }) {
+    const user = await this.userRepo.findById(req.user.sub);
     if (!user) {
       throw new NotFoundException({ code: 'USER_NOT_FOUND', message: 'User not found' });
     }
@@ -280,7 +280,7 @@ export class AuthController {
       id: user.id.value,
       fullName: user.fullName,
       email: user.email?.value ?? null,
-      role: req.user!.role,
+      role: req.user.role,
       locale: user.locale,
       theme: user.theme,
       audioSpeed: user.audioSpeed,
@@ -298,9 +298,9 @@ export class AuthController {
   @ApiResponse({ status: 401, description: 'AUTH_INVALID_CREDENTIALS — current password wrong' })
   async changePassword(
     @Body() dto: ChangePasswordDto,
-    @Req() req: Request & { user?: { sub: string } },
+    @Req() req: Request & { user: { sub: string } },
   ) {
-    const user = await this.userRepo.findByIdWithPassword(req.user!.sub);
+    const user = await this.userRepo.findByIdWithPassword(req.user.sub);
     if (!user || !user.passwordHash) {
       throw new UnauthorizedException({ code: 'AUTH_INVALID_CREDENTIALS', message: 'Invalid credentials' });
     }

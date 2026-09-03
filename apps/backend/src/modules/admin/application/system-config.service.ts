@@ -108,7 +108,10 @@ export class SystemConfigService implements OnModuleInit {
       this.cache.set(key, newValue);
 
       const updated = await manager.findOne(SystemConfigOrmEntity, { where: { key } });
-      return updated!;
+      if (!updated) {
+        throw new Error(`System config '${key}' vanished immediately after update() succeeded`);
+      }
+      return updated;
     });
   }
 
