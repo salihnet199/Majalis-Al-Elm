@@ -135,7 +135,7 @@ export class NotificationService {
     category: string;
     title?: string;
     body: string;
-    data?: Record<string, any>;
+    data?: Record<string, unknown>;
   }): Promise<NotificationOrmEntity> {
     const entity = this.notificationRepo.create({
       id: randomUUID(),

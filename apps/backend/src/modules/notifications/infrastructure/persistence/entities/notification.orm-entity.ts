@@ -27,7 +27,7 @@ export class NotificationOrmEntity {
   body!: string;
 
   @Column({ type: 'jsonb', nullable: true })
-  data?: Record<string, any> | null;
+  data?: Record<string, unknown> | null;
 
   @Column({
     type: 'enum',

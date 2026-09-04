@@ -148,9 +148,9 @@ export class NotificationDispatcherWorker
       }
 
       await this.notificationRepo.save(notification);
-    } catch (err: any) {
+    } catch (err) {
       notification.status = NotificationStatus.FAILED;
-      notification.errorMsg = err.message || 'Unexpected dispatcher error';
+      notification.errorMsg = err instanceof Error ? err.message : 'Unexpected dispatcher error';
       await this.notificationRepo.save(notification);
     }
   }
