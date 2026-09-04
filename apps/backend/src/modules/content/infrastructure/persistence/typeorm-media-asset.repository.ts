@@ -3,7 +3,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, IsNull } from 'typeorm';
 import { MediaAssetOrmEntity } from './entities/media-asset.orm-entity';
 import { IMediaAssetRepository } from '../../domain/ports/media-asset.repository';
-import { MediaAsset } from '../../domain/media-asset.entity';
+import { MediaAsset, TranscodeStatus, UploadStatus } from '../../domain/media-asset.entity';
 
 @Injectable()
 export class TypeOrmMediaAssetRepository implements IMediaAssetRepository {
@@ -88,9 +88,9 @@ export class TypeOrmMediaAssetRepository implements IMediaAssetRepository {
       widthPx: orm.widthPx,
       heightPx: orm.heightPx,
       thumbnailKey: orm.thumbnailKey,
-      transcodeStatus: orm.transcodeStatus as any,
+      transcodeStatus: orm.transcodeStatus as TranscodeStatus,
       transcodeError: orm.transcodeError,
-      uploadStatus: orm.uploadStatus as any,
+      uploadStatus: orm.uploadStatus as UploadStatus,
       sha256: orm.sha256,
       // pg returns BIGINT as a string to avoid precision loss; a raw string here
       // would make the domain's `verifiedBytes !== sizeBytes` check compare a

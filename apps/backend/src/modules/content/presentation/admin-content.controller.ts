@@ -392,10 +392,10 @@ export class AdminContentController {
 
     try {
       item.submitForReview();
-    } catch (err: any) {
+    } catch (err) {
       throw new UnprocessableEntityException({
         code: 'UNPROCESSABLE',
-        message: err.message,
+        message: err instanceof Error ? err.message : 'Unprocessable request',
       });
     }
 
@@ -423,10 +423,10 @@ export class AdminContentController {
 
     try {
       item.publish();
-    } catch (err: any) {
+    } catch (err) {
       throw new UnprocessableEntityException({
         code: 'UNPROCESSABLE',
-        message: err.message,
+        message: err instanceof Error ? err.message : 'Unprocessable request',
       });
     }
 
@@ -455,10 +455,10 @@ export class AdminContentController {
 
     try {
       item.archive();
-    } catch (err: any) {
+    } catch (err) {
       throw new UnprocessableEntityException({
         code: 'UNPROCESSABLE',
-        message: err.message,
+        message: err instanceof Error ? err.message : 'Unprocessable request',
       });
     }
 
