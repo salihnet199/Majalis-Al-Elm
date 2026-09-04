@@ -19,7 +19,7 @@ export interface UiBlockItem {
   isEnabled: boolean;
   isSystem: boolean;
   sortOrder: number;
-  customPayload?: Record<string, any>;
+  customPayload?: Record<string, unknown>;
   updatedAt: string;
 }
 

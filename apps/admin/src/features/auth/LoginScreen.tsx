@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { Card, Form, Input, Button, Alert, Typography } from 'antd';
 import { MailOutlined, LockOutlined, LoginOutlined } from '@ant-design/icons';
 import { useNavigate, useLocation } from 'react-router-dom';
-import axios from 'axios';
+import axios, { AxiosError } from 'axios';
 import { useAuthStore } from '../../core/stores/auth.store';
 import { useCmsStore } from '../../core/stores/cms.store';
 import { API_BASE_URL } from '../../core/api/client';
@@ -53,10 +53,12 @@ export const LoginScreen: React.FC = () => {
 
       const origin = (location.state as { from?: { pathname?: string } })?.from?.pathname || '/dashboard';
       navigate(origin, { replace: true });
-    } catch (err: any) {
-      if (err.response?.data?.error?.code === 'AUTH_INVALID_CREDENTIALS') {
+    } catch (err) {
+      const axiosError = err as AxiosError<{ error?: { code?: string } }>;
+      const code = axiosError.response?.data?.error?.code;
+      if (code === 'AUTH_INVALID_CREDENTIALS') {
         setErrorMessage('البريد الإلكتروني أو كلمة المرور غير صحيحة.');
-      } else if (err.response?.data?.error?.code === 'AUTH_ACCOUNT_SUSPENDED') {
+      } else if (code === 'AUTH_ACCOUNT_SUSPENDED') {
         setErrorMessage('هذا الحساب موقوف حالياً. يرجى التواصل مع الإدارة العليا.');
       } else {
         // No session is ever created on failure — network, 5xx and CORS errors

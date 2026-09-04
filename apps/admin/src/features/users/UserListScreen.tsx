@@ -96,7 +96,7 @@ export const UserListScreen: React.FC = () => {
 
   // 3. Create User / Admin Mutation
   const createUserMutation = useMutation({
-    mutationFn: async (values: any) => {
+    mutationFn: async (values: { fullName: string; email: string; password: string; role: Role }) => {
       return apiClient.post('/admin/users', values);
     },
     onSuccess: () => {

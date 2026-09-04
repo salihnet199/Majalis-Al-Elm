@@ -5,6 +5,7 @@ import { apiClient } from '../../core/api/client';
 import { queryKeys } from '../../core/queries/queryKeys';
 import { UserProfile, Role, ASSIGNABLE_ROLES } from '../../core/types/auth.types';
 import { useAuthStore } from '../../core/stores/auth.store';
+import type { AxiosError } from 'axios';
 
 const { Option } = Select;
 
@@ -36,7 +37,7 @@ export const RoleChangeModal: React.FC<RoleChangeModalProps> = ({ open, user, on
       queryClient.invalidateQueries({ queryKey: queryKeys.users.all });
       onClose();
     },
-    onError: (err: any) => {
+    onError: (err: AxiosError<{ error?: { message?: string } }>) => {
       message.error(err.response?.data?.error?.message || 'فشلت عملية تعديل الدور. تأكد من امتلاك صلاحية SuperAdmin.');
     },
   });

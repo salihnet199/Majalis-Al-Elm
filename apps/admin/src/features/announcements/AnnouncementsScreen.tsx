@@ -28,6 +28,13 @@ import { toArabicErrorMessage } from '../../core/api/errorMessage';
 import { queryKeys } from '../../core/queries/queryKeys';
 import { AnnouncementItem } from '../../core/types/audit.types';
 
+/** Shape of the create/edit Form's fields — mirrors AnnouncementItem minus server-set fields. */
+interface AnnouncementFormValues {
+  title: string;
+  target: AnnouncementItem['target'];
+  body: string;
+}
+
 const { Title, Text } = Typography;
 const { TextArea } = Input;
 const { Option } = Select;
@@ -59,7 +66,7 @@ export const AnnouncementsScreen: React.FC = () => {
 
   // Create & Send Mutation
   const sendMutation = useMutation({
-    mutationFn: async (values: any) => {
+    mutationFn: async (values: AnnouncementFormValues) => {
       return apiClient.post('/admin/announcements', values);
     },
     onSuccess: () => {
@@ -90,7 +97,7 @@ export const AnnouncementsScreen: React.FC = () => {
 
   // Update Announcement Mutation
   const updateMutation = useMutation({
-    mutationFn: async ({ id, values }: { id: string; values: any }) => {
+    mutationFn: async ({ id, values }: { id: string; values: AnnouncementFormValues }) => {
       return apiClient.patch(`/admin/announcements/${id}`, values);
     },
     onSuccess: () => {
@@ -106,7 +113,7 @@ export const AnnouncementsScreen: React.FC = () => {
     },
   });
 
-  const handleCreateSubmit = (values: any) => {
+  const handleCreateSubmit = (values: AnnouncementFormValues) => {
     sendMutation.mutate(values);
   };
 
@@ -182,7 +189,7 @@ export const AnnouncementsScreen: React.FC = () => {
       title: 'الإجراءات',
       key: 'actions',
       width: 120,
-      render: (_: any, record: AnnouncementItem) => (
+      render: (_: unknown, record: AnnouncementItem) => (
         <div className="flex items-center gap-2">
           <Tooltip title="تعديل الإعلان">
             <Button
