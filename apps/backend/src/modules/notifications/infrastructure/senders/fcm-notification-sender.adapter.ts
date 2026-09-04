@@ -1,6 +1,8 @@
 import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import * as fs from 'fs';
 import * as path from 'path';
+import type { App } from 'firebase-admin/app';
+import type { MulticastMessage, SendResponse } from 'firebase-admin/messaging';
 import {
   NotificationSenderPort,
   SendNotificationResult,
@@ -9,17 +11,31 @@ import { NotificationOrmEntity } from '../persistence/entities/notification.orm-
 import { UserDeviceOrmEntity } from '../persistence/entities/user-device.orm-entity';
 import { DeviceService } from '../../application/device.service';
 
-let admin: any = null;
+/**
+ * firebase-admin v14 dropped the old namespaced default export
+ * (admin.credential, admin.apps, admin.messaging all used to exist on the
+ * root object — none of them do anymore) in favor of modular subpath
+ * exports. Loaded lazily via require() so the app can still boot in Smart
+ * Hybrid Mode if the package fails to load for any reason — but from the
+ * correct entry points this time, and typed via `import type` (erased at
+ * compile time, so it doesn't force a runtime import) instead of `any`.
+ */
+type FirebaseAppModule = typeof import('firebase-admin/app');
+type FirebaseMessagingModule = typeof import('firebase-admin/messaging');
+
+let firebaseAppMod: FirebaseAppModule | null = null;
+let firebaseMessagingMod: FirebaseMessagingModule | null = null;
 try {
-  admin = require('firebase-admin');
+  firebaseAppMod = require('firebase-admin/app');
+  firebaseMessagingMod = require('firebase-admin/messaging');
 } catch {
-  // Graceful fallback if package is loading
+  // Graceful fallback if the package is loading
 }
 
 @Injectable()
 export class FcmNotificationSenderAdapter implements NotificationSenderPort, OnModuleInit {
   private readonly logger = new Logger(FcmNotificationSenderAdapter.name);
-  private firebaseApp: any = null;
+  private firebaseApp: App | null = null;
   private isFirebaseReady = false;
 
   constructor(private readonly deviceService: DeviceService) {}
@@ -34,14 +50,15 @@ export class FcmNotificationSenderAdapter implements NotificationSenderPort, OnM
    * Gracefully degrades to Smart Hybrid Mode if credentials are not yet supplied.
    */
   private initFirebase() {
-    if (!admin) {
+    if (!firebaseAppMod) {
       this.logger.warn('[FCM] firebase-admin package not loaded — running in Smart Hybrid Mode');
       return;
     }
 
     // Already initialized check
-    if (admin.apps && admin.apps.length > 0) {
-      this.firebaseApp = admin.apps[0];
+    const existingApps = firebaseAppMod.getApps();
+    if (existingApps.length > 0) {
+      this.firebaseApp = existingApps[0];
       this.isFirebaseReady = true;
       this.logger.log('[FCM] Reusing existing Firebase Admin App');
       return;
@@ -60,14 +77,8 @@ export class FcmNotificationSenderAdapter implements NotificationSenderPort, OnM
       for (const candidate of candidatePaths) {
         if (fs.existsSync(candidate)) {
           const serviceAccount = JSON.parse(fs.readFileSync(candidate, 'utf8'));
-          let credential: any;
-          if (admin.credential && typeof admin.credential.cert === 'function') {
-            credential = admin.credential.cert(serviceAccount);
-          } else {
-            const { cert } = require('firebase-admin/app');
-            credential = cert(serviceAccount);
-          }
-          this.firebaseApp = admin.initializeApp({ credential });
+          const credential = firebaseAppMod.cert(serviceAccount);
+          this.firebaseApp = firebaseAppMod.initializeApp({ credential });
           this.isFirebaseReady = true;
           this.logger.log(`[FCM] Firebase Admin SDK successfully initialized with cert: ${candidate}`);
           return;
@@ -77,19 +88,12 @@ export class FcmNotificationSenderAdapter implements NotificationSenderPort, OnM
       // 2. Check inline environment variables
       if (process.env.FIREBASE_PROJECT_ID && process.env.FIREBASE_CLIENT_EMAIL && process.env.FIREBASE_PRIVATE_KEY) {
         const privateKey = process.env.FIREBASE_PRIVATE_KEY.replace(/\\n/g, '\n');
-        let credential: any;
-        const inlineConfig = {
+        const credential = firebaseAppMod.cert({
           projectId: process.env.FIREBASE_PROJECT_ID,
           clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
           privateKey,
-        };
-        if (admin.credential && typeof admin.credential.cert === 'function') {
-          credential = admin.credential.cert(inlineConfig);
-        } else {
-          const { cert } = require('firebase-admin/app');
-          credential = cert(inlineConfig);
-        }
-        this.firebaseApp = admin.initializeApp({ credential });
+        });
+        this.firebaseApp = firebaseAppMod.initializeApp({ credential });
         this.isFirebaseReady = true;
         this.logger.log('[FCM] Firebase Admin SDK successfully initialized from environment variables');
         return;
@@ -99,8 +103,9 @@ export class FcmNotificationSenderAdapter implements NotificationSenderPort, OnM
       this.logger.log(
         '[FCM] Smart Hybrid Mode Active: No Firebase service account detected. Push notifications will be simulated safely in logs.',
       );
-    } catch (err: any) {
-      this.logger.warn(`[FCM] Could not initialize Firebase Admin SDK: ${err.message}. Defaulting to Smart Hybrid Mode.`);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      this.logger.warn(`[FCM] Could not initialize Firebase Admin SDK: ${message}. Defaulting to Smart Hybrid Mode.`);
     }
   }
 
@@ -126,23 +131,29 @@ export class FcmNotificationSenderAdapter implements NotificationSenderPort, OnM
     }
 
     // ── Live FCM Dispatch ──────────────────────────────────────────
-    if (this.isFirebaseReady && admin && admin.messaging) {
+    if (this.isFirebaseReady && this.firebaseApp && firebaseMessagingMod) {
       try {
-        const payload = {
+        // actionUrl isn't a column on NotificationOrmEntity — it would live
+        // in the flexible `data` JSONB bag if a caller ever sets one there.
+        // Nothing currently does, so this is always '' today; kept reading
+        // from the right place instead of a nonexistent top-level field.
+        const actionUrl = typeof notification.data?.actionUrl === 'string' ? notification.data.actionUrl : '';
+
+        const payload: MulticastMessage = {
           tokens,
           notification: {
-            title: notification.title,
+            title: notification.title ?? undefined,
             body: notification.body,
           },
           data: {
             notificationId: String(notification.id),
             category: String(notification.category || 'announcement'),
             channel: String(notification.channel || 'IN_APP'),
-            actionUrl: String((notification as any).actionUrl || ''),
+            actionUrl,
             createdAt: notification.createdAt ? notification.createdAt.toISOString() : new Date().toISOString(),
           },
           android: {
-            priority: 'high' as const,
+            priority: 'high',
             notification: {
               sound: 'default',
               channelId: 'majalis_elm_announcements',
@@ -155,7 +166,7 @@ export class FcmNotificationSenderAdapter implements NotificationSenderPort, OnM
                 sound: 'default',
                 badge: 1,
                 alert: {
-                  title: notification.title,
+                  title: notification.title ?? undefined,
                   body: notification.body,
                 },
               },
@@ -163,14 +174,15 @@ export class FcmNotificationSenderAdapter implements NotificationSenderPort, OnM
           },
         };
 
-        const response = await admin.messaging().sendEachForMulticast(payload);
+        const messaging = firebaseMessagingMod.getMessaging(this.firebaseApp);
+        const response = await messaging.sendEachForMulticast(payload);
         this.logger.log(
           `[FCM] Multicast sent to ${tokens.length} device(s). Success: ${response.successCount}, Failures: ${response.failureCount}`,
         );
 
         // Prune unregistered/invalid tokens automatically
         if (response.failureCount > 0) {
-          response.responses.forEach((resp: any, idx: number) => {
+          response.responses.forEach((resp: SendResponse, idx: number) => {
             if (!resp.success && resp.error) {
               const errorCode = resp.error.code;
               if (
@@ -184,7 +196,7 @@ export class FcmNotificationSenderAdapter implements NotificationSenderPort, OnM
                   // Best-effort cleanup — a failed deletion here shouldn't
                   // interrupt notification dispatch for the remaining tokens.
                   this.deviceService
-                    .deleteDevice(deviceToRemove.id, { sub: notification.userId } as any)
+                    .deleteDevice(deviceToRemove.id, { sub: notification.userId })
                     .catch(() => undefined);
                 }
               }
@@ -193,9 +205,11 @@ export class FcmNotificationSenderAdapter implements NotificationSenderPort, OnM
         }
 
         return { success: true };
-      } catch (err: any) {
-        this.logger.error(`[FCM] Failed to dispatch multicast notification: ${err.message}`, err.stack);
-        return { success: false, error: err.message };
+      } catch (err) {
+        const message = err instanceof Error ? err.message : String(err);
+        const stack = err instanceof Error ? err.stack : undefined;
+        this.logger.error(`[FCM] Failed to dispatch multicast notification: ${message}`, stack);
+        return { success: false, error: message };
       }
     }
 

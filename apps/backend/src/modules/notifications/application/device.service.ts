@@ -51,7 +51,7 @@ export class DeviceService {
     };
   }
 
-  async deleteDevice(deviceId: string, user: JwtPayload): Promise<void> {
+  async deleteDevice(deviceId: string, user: Pick<JwtPayload, 'sub'>): Promise<void> {
     const device = await this.deviceRepo.findOne({
       where: { id: deviceId },
     });
