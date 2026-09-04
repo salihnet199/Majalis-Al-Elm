@@ -11,6 +11,23 @@ const { Option } = Select;
 const { TextArea } = Input;
 const { Text } = Typography;
 
+/** Loosely-typed shape of a single category as the API actually returns it, before normalization. */
+interface RawCategoryApiItem {
+  id?: string;
+  slug: string;
+  name?: string;
+  translations?: Array<{ name?: string }>;
+  contentCount?: number;
+  createdAt?: string;
+}
+
+/** Loosely-typed shape of a single author as the API actually returns it, before normalization. */
+interface RawAuthorApiItem {
+  id: string;
+  name?: string;
+  slug?: string;
+}
+
 /**
  * The content editor form.
  *
@@ -106,6 +123,20 @@ function allowedActions(status: string): Array<{ value: PostSaveAction; label: s
   }
 }
 
+/** Shape of the content editor Form's fields, read by saveMutation's mutationFn. */
+interface ContentFormValues {
+  title: string;
+  description?: string;
+  body?: string;
+  primaryLocale?: string;
+  postSaveAction?: PostSaveAction;
+  categoryId: string;
+  authorId?: string;
+  mediaAssetId?: string;
+  slug: string;
+  type: 'AUDIO' | 'TEXT' | 'PDF' | 'IMAGE';
+}
+
 interface SaveOutcome {
   id: string;
   finalStatus: string;
@@ -133,9 +164,9 @@ export const ContentModal: React.FC<ContentModalProps> = ({ open, initialData, o
   const { data: categories = [], isError: isCategoriesError, error: categoriesError } = useQuery({
     queryKey: queryKeys.content.categories(),
     queryFn: async () => {
-      const res = await apiClient.get('/content/categories');
+      const res = await apiClient.get<{ data: RawCategoryApiItem[] }>('/content/categories');
       const items = res.data?.data || res.data || [];
-      return items.map((cat: any) => ({
+      return items.map((cat: RawCategoryApiItem) => ({
         id: cat.id || cat.slug,
         slug: cat.slug,
         name: cat.name || cat.translations?.[0]?.name || cat.slug,
@@ -153,9 +184,9 @@ export const ContentModal: React.FC<ContentModalProps> = ({ open, initialData, o
   const { data: authors = [], isError: isAuthorsError, error: authorsError } = useQuery({
     queryKey: queryKeys.content.authors(),
     queryFn: async () => {
-      const res = await apiClient.get('/admin/authors');
+      const res = await apiClient.get<{ data: RawAuthorApiItem[] }>('/admin/authors');
       const items = res.data?.data || [];
-      return items.map((a: any) => ({ id: a.id, name: a.name || a.slug, slug: a.slug }));
+      return items.map((a: RawAuthorApiItem) => ({ id: a.id, name: a.name || a.slug, slug: a.slug }));
     },
     enabled: open,
     staleTime: 30000,
@@ -295,8 +326,8 @@ export const ContentModal: React.FC<ContentModalProps> = ({ open, initialData, o
     return { status };
   };
 
-  const saveMutation = useMutation<SaveOutcome, unknown, any>({
-    mutationFn: async (values: any) => {
+  const saveMutation = useMutation<SaveOutcome, unknown, ContentFormValues>({
+    mutationFn: async (values: ContentFormValues) => {
       const locale: string = values.primaryLocale || 'ar';
       const translation: Record<string, string> = { locale, title: values.title };
       if (values.description) translation.description = values.description;
@@ -468,7 +499,7 @@ export const ContentModal: React.FC<ContentModalProps> = ({ open, initialData, o
                   isCategoriesError ? 'تعذر تحميل الأقسام من الخادم' : 'لا توجد أقسام متاحة'
                 }
               >
-                {categories.map((cat: any) => (
+                {categories.map((cat) => (
                   <Option key={cat.id} value={cat.id}>
                     {cat.name}
                   </Option>
@@ -498,7 +529,7 @@ export const ContentModal: React.FC<ContentModalProps> = ({ open, initialData, o
                   isAuthorsError ? 'تعذر تحميل المؤلفين من الخادم' : 'لا يوجد مؤلفون مسجّلون'
                 }
               >
-                {authors.map((a: any) => (
+                {authors.map((a) => (
                   <Option key={a.id} value={a.id}>
                     {a.name}
                   </Option>

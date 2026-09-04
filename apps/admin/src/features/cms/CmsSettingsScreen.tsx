@@ -146,7 +146,7 @@ export const CmsSettingsScreen: React.FC = () => {
       title: 'الإجراءات',
       key: 'actions',
       width: 140,
-      render: (_: any, record: UiTextItem) => (
+      render: (_: unknown, record: UiTextItem) => (
         <div className="flex items-center gap-2">
           <Tooltip title="تعديل النص">
             <Button
@@ -227,7 +227,7 @@ export const CmsSettingsScreen: React.FC = () => {
       title: 'إدارة الكتلة',
       key: 'actions',
       width: 120,
-      render: (_: any, record: UiBlockItem) => {
+      render: (_: unknown, record: UiBlockItem) => {
         if (record.isSystem) {
           return (
             <span className="text-xs text-mocha-400 font-cairo">

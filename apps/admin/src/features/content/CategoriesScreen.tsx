@@ -37,6 +37,16 @@ interface CategoryItem {
   createdAt?: string;
 }
 
+/** Loosely-typed shape of a single category as the API actually returns it, before normalization. */
+interface RawCategoryApiItem {
+  id?: string;
+  slug: string;
+  name?: string;
+  translations?: Array<{ name?: string }>;
+  contentCount?: number;
+  createdAt?: string;
+}
+
 export const CategoriesScreen: React.FC = () => {
   const queryClient = useQueryClient();
   const [newCategoryName, setNewCategoryName] = useState('');
@@ -56,7 +66,7 @@ export const CategoriesScreen: React.FC = () => {
     queryFn: async () => {
       const res = await apiClient.get('/content/categories');
       const items = res.data?.data || res.data || [];
-      return items.map((cat: any) => ({
+      return items.map((cat: RawCategoryApiItem) => ({
         id: cat.id || cat.slug,
         slug: cat.slug,
         name: cat.name || cat.translations?.[0]?.name || cat.slug,
@@ -199,7 +209,7 @@ export const CategoriesScreen: React.FC = () => {
       title: 'الإجراءات',
       key: 'actions',
       width: 140,
-      render: (_: any, record: CategoryItem) => {
+      render: (_: unknown, record: CategoryItem) => {
         const hasContent = (record.contentCount || 0) > 0;
         return (
           <Tooltip title={hasContent ? 'حذف القسم ونقل المواد المرتبطة' : 'حذف القسم'}>

@@ -33,6 +33,23 @@ import { useCmsStore } from '../../core/stores/cms.store';
 const { Title, Text } = Typography;
 const { TextArea } = Input;
 
+interface TopContentItem {
+  id: string;
+  title: string;
+  type: string;
+  viewCount: number;
+}
+
+interface AnalyticsOverview {
+  totalContent?: number;
+  totalViews?: number;
+  totalUsers?: number;
+  activeDrafts?: number;
+  totalFatwas?: number;
+  totalAudioSeries?: number;
+  topContent?: TopContentItem[];
+}
+
 export const DashboardScreen: React.FC = () => {
   const { getText, isBlockEnabled, updateText } = useCmsStore();
   const [isEditProfileOpen, setIsEditProfileOpen] = useState(false);
@@ -69,7 +86,7 @@ export const DashboardScreen: React.FC = () => {
   } = useQuery({
     queryKey: queryKeys.analytics.overview(),
     queryFn: async () => {
-      const res = await apiClient.get<{ data: any }>('/admin/analytics/overview');
+      const res = await apiClient.get<{ data: AnalyticsOverview }>('/admin/analytics/overview');
       return res.data?.data || res.data;
     },
     staleTime: 30000,
@@ -299,7 +316,7 @@ export const DashboardScreen: React.FC = () => {
               >
                 <Table
                   columns={topContentColumns}
-                  dataSource={(analyticsData?.topContent as any) || []}
+                  dataSource={analyticsData?.topContent || []}
                   rowKey="id"
                   pagination={false}
                   locale={{
