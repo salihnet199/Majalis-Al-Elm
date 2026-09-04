@@ -173,11 +173,13 @@ describe('BC03 Engagement Module — Integration Tests', () => {
               );
             }
             if (cursorDateFilter && cursorIdFilter) {
+              const dateFilter = cursorDateFilter;
+              const idFilter = cursorIdFilter;
               res = res.filter(
                 (c) =>
-                  c.createdAt < cursorDateFilter! ||
-                  (c.createdAt.getTime() === cursorDateFilter!.getTime() &&
-                    c.id < cursorIdFilter!),
+                  c.createdAt < dateFilter ||
+                  (c.createdAt.getTime() === dateFilter.getTime() &&
+                    c.id < idFilter),
               );
             }
             res.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());

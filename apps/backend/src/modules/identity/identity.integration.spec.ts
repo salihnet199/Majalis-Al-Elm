@@ -523,7 +523,10 @@ describe('BC01 Identity — Integration Tests', () => {
       activeTokens = registerRes.body;
 
       // Simulate admin suspension (direct mutation of in-memory DB)
-      const user = userDb.get(suspendedUserId)!;
+      const user = userDb.get(suspendedUserId);
+      if (!user) {
+        throw new Error(`Test setup invariant violated: user ${suspendedUserId} not found in userDb right after registration`);
+      }
       user.suspend(new Date());
       userDb.set(suspendedUserId, user);
     });
