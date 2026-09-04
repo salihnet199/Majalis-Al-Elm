@@ -173,7 +173,14 @@ export const ContentModal: React.FC<ContentModalProps> = ({ open, initialData, o
   } = useQuery({
     queryKey: queryKeys.content.adminDetail(initialData?.id ?? ''),
     queryFn: async () => {
-      const res = await apiClient.get(`/admin/content/${initialData!.id}`);
+      const id = initialData?.id;
+      if (!id) {
+        // Unreachable in practice: `enabled` below guards this query so it
+        // only ever runs once initialData.id is set. Fails loudly instead
+        // of silently coercing undefined into the URL if that ever changes.
+        throw new Error('ContentModal: detail query ran without initialData.id');
+      }
+      const res = await apiClient.get(`/admin/content/${id}`);
       const data = res.data?.data;
       if (!data?.id) {
         throw new Error('لم يُعِد الخادم بيانات المادة');
