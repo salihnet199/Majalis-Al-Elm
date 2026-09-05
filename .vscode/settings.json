@@ -1,5 +1,6 @@
 {
   "css.lint.unknownAtRules": "ignore",
   "less.lint.unknownAtRules": "ignore",
-  "scss.lint.unknownAtRules": "ignore"
+  "scss.lint.unknownAtRules": "ignore",
+  "cmake.sourceDirectory": "C:/Users/salih/Desktop/salihalfajaer/al-fajr-monorepo/apps/mobile/windows"
 }
