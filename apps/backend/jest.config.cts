@@ -1,7 +1,9 @@
 // Ensure NODE_ENV=test is always set so JwtRs256Adapter activates its
 // HS256 test-only fallback when no RSA keys are configured.
-// Without this, tests fail non-deterministically depending on shell environment.
-process.env.NODE_ENV = process.env.NODE_ENV || 'test';
+// Force-set to 'test' unconditionally — do NOT defer to an inherited shell
+// value (e.g. NODE_ENV=production from IDE or system env), which caused 56
+// test failures whenever the environment had a pre-set NODE_ENV.
+process.env.NODE_ENV = 'test';
 
 module.exports = {
   displayName: 'backend',
