@@ -40,6 +40,8 @@ import request = require('supertest');
 
 import { JwtRs256Adapter } from '../identity/infrastructure/adapters/jwt-rs256.adapter';
 import { JwtStrategy } from '../identity/infrastructure/adapters/jwt.strategy';
+import { IUserRepository, USER_REPOSITORY } from '../identity/domain/ports/user.repository';
+import { User } from '../identity/domain/user.entity';
 import { UUIDv7 } from '../../shared/domain/uuid.vo';
 import { MediaAsset } from './domain/media-asset.entity';
 import {
@@ -119,6 +121,33 @@ describe('Media upload — anti-fabrication regression suite (POLICY-SEC-001)', 
       },
     };
 
+    // JwtStrategy now looks up the active user on every authenticated request
+    // (suspension/soft-delete take effect immediately — see jwt.strategy.ts).
+    // This suite only ever authenticates as a single active Editor, so the
+    // mock just needs to answer "active, role Editor" for any id it's asked.
+    const mockUserRepo: Partial<IUserRepository> = {
+      async findById(id: string) {
+        return User.reconstitute({
+          id,
+          fullName: 'Test Editor',
+          email: 'editor@example.com',
+          phoneE164: null,
+          passwordHash: null,
+          locale: 'ar',
+          theme: 'system',
+          audioSpeed: 1.0,
+          isSuspended: false,
+          suspendedAt: null,
+          deletedAt: null,
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        });
+      },
+      async getPrimaryRole() {
+        return 'Editor';
+      },
+    };
+
     const moduleFixture: TestingModule = await Test.createTestingModule({
       imports: [PassportModule.register({ defaultStrategy: 'jwt' }), JwtModule.register({})],
       controllers: [AdminMediaController],
@@ -130,6 +159,7 @@ describe('Media upload — anti-fabrication regression suite (POLICY-SEC-001)', 
         { provide: STORAGE_SERVICE, useValue: storage },
         { provide: ConfigService, useValue: mockConfigService },
         { provide: MEDIA_ASSET_REPOSITORY, useValue: mockMediaRepo },
+        { provide: USER_REPOSITORY, useValue: mockUserRepo },
         { provide: APP_GUARD, useClass: BypassThrottlerGuard },
       ],
     }).compile();

@@ -1,8 +1,14 @@
+import 'dart:io';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:path_provider/path_provider.dart';
 import 'package:equatable/equatable.dart';
 import '../../../core/storage/collections/content_meta_collection.dart';
+import '../../../core/network/media_file_fetcher.dart';
+import '../../content/data/repositories/content_repository.dart';
 import '../../content/data/repositories/offline_content_repository.dart';
 import '../../content/domain/models/content_item_model.dart';
+import '../../content/providers/content_provider.dart';
 
 class DownloadsState extends Equatable {
   final List<ContentMetaCollection> items;
@@ -52,8 +58,14 @@ class DownloadsState extends Equatable {
 
 class DownloadsNotifier extends StateNotifier<DownloadsState> {
   final IOfflineContentRepository repository;
+  final IContentRepository contentRepository;
+  final MediaFileFetcher fileFetcher;
 
-  DownloadsNotifier({required this.repository})
+  DownloadsNotifier({
+    required this.repository,
+    required this.contentRepository,
+    required this.fileFetcher,
+  })
       : super(const DownloadsState()) {
     loadDownloads();
   }
@@ -86,9 +98,16 @@ class DownloadsNotifier extends StateNotifier<DownloadsState> {
   }
 
   Future<void> search(String query) async {
-    state = state.copyWith(searchQuery: query, isLoading: true);
+    final normalizedQuery = query.trim();
+    if (normalizedQuery.isEmpty) {
+      state = state.copyWith(searchQuery: '', isLoading: true);
+      await loadDownloads();
+      return;
+    }
+
+    state = state.copyWith(searchQuery: normalizedQuery, isLoading: true);
     try {
-      final results = await repository.searchOffline(query);
+      final results = await repository.searchOffline(normalizedQuery);
       final filtered = state.selectedType == 'ALL'
           ? results
           : results.where((item) => item.contentType == state.selectedType).toList();
@@ -116,6 +135,54 @@ class DownloadsNotifier extends StateNotifier<DownloadsState> {
     await loadDownloads();
   }
 
+
+  Future<void> downloadContent(
+    ContentItemModel item, {
+    void Function(int received, int total)? onProgress,
+  }) async {
+    if (item.id.trim().isEmpty) {
+      throw const StateError('Cannot download an item without an id');
+    }
+
+    final dir = await getApplicationSupportDirectory();
+    final downloadsDir = Directory('${dir.path}/downloads');
+    await downloadsDir.create(recursive: true);
+
+    final ext = switch (item.type) {
+      'AUDIO' => '.mp3',
+      'PDF' => '.pdf',
+      'IMAGE' => '.img',
+      _ => '.bin',
+    };
+    final safeId = item.id.replaceAll(RegExp(r'[^A-Za-z0-9_-]'), '_');
+    final targetPath = '${downloadsDir.path}/$safeId$ext';
+
+    if (item.type == 'TEXT') {
+      if ((item.textContent ?? '').trim().isEmpty) {
+        throw const StateError('Text content is unavailable for offline storage');
+      }
+      await repository.saveDownloadedContent(item: item, localFilePath: '');
+      return;
+    }
+
+    final stream = item.type == 'AUDIO' || item.type == 'PDF'
+        ? await contentRepository.getMediaStreamUrl(item.slug.isNotEmpty ? item.slug : item.id)
+        : null;
+    final url = stream?.url ?? item.url;
+    if (url.trim().isEmpty) {
+      throw const StateError('No downloadable URL was provided by the server');
+    }
+
+    await fileFetcher.downloadToFile(
+      url,
+      targetPath: targetPath,
+      expectedSize: stream?.sizeBytes ?? (item.fileSizeBytes > 0 ? item.fileSizeBytes : null),
+      onProgress: onProgress,
+    );
+
+    await repository.saveDownloadedContent(item: item, localFilePath: targetPath);
+  }
+
   Future<void> deleteItem(String contentId) async {
     await repository.deleteDownloadedContent(contentId);
     await loadDownloads();
@@ -128,6 +195,9 @@ final offlineContentRepositoryProvider = Provider<IOfflineContentRepository>((re
 
 final downloadsNotifierProvider =
     StateNotifierProvider<DownloadsNotifier, DownloadsState>((ref) {
-  final repo = ref.watch(offlineContentRepositoryProvider);
-  return DownloadsNotifier(repository: repo);
+  return DownloadsNotifier(
+    repository: ref.watch(offlineContentRepositoryProvider),
+    contentRepository: ref.watch(contentRepositoryProvider),
+    fileFetcher: ref.watch(mediaFileFetcherProvider),
+  );
 });

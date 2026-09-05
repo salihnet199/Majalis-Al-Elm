@@ -216,8 +216,25 @@ export class AuthController {
       throw new UnauthorizedException({ code: 'AUTH_TOKEN_EXPIRED', message: 'Refresh token has expired' });
     }
 
-    // 4. Revoke old token (rotation)
-    await this.refreshTokenRepo.update({ id: stored.id }, { isRevoked: true, revokedAt: new Date() });
+    // 4. Revoke old token atomically (rotation).
+    // A plain read-then-update is vulnerable to two concurrent refresh requests
+    // both observing the same active token. The conditional UPDATE makes the
+    // database the serialization point: exactly one request wins.
+    const rotationResult = await this.refreshTokenRepo.update(
+      { id: stored.id, isRevoked: false },
+      { isRevoked: true, revokedAt: new Date() },
+    );
+
+    if (rotationResult.affected !== 1) {
+      await this.refreshTokenRepo.update(
+        { tokenFamily: stored.tokenFamily },
+        { isRevoked: true, revokedAt: new Date() },
+      );
+      throw new UnauthorizedException({
+        code: 'AUTH_TOKEN_EXPIRED',
+        message: 'Refresh token is invalid or reused',
+      });
+    }
 
     // 5. Check user suspension
     const user = await this.userRepo.findById(payload.sub);
@@ -371,7 +388,7 @@ export class AuthController {
     return {
       accessToken,
       refreshToken: rawRefreshToken,
-      expiresIn: 900,    // JWT_ACCESS_TOKEN_TTL = 15 min
+      expiresIn: this.jwt.getAccessTokenTtl(),
       tokenType: 'Bearer' as const,
       sessionId,
       user: {

@@ -1,82 +1,61 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../../core/constants/app_constants.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_typography.dart';
 import '../../content/domain/models/content_item_model.dart';
+import '../../content/providers/content_provider.dart';
+import '../../downloads/providers/downloads_notifier.dart';
 
-class AudioCatalogScreen extends StatefulWidget {
+class AudioCatalogScreen extends ConsumerStatefulWidget {
   const AudioCatalogScreen({super.key});
 
   @override
-  State<AudioCatalogScreen> createState() => _AudioCatalogScreenState();
+  ConsumerState<AudioCatalogScreen> createState() => _AudioCatalogScreenState();
 }
 
-class _AudioCatalogScreenState extends State<AudioCatalogScreen> {
+class _AudioCatalogScreenState extends ConsumerState<AudioCatalogScreen> {
   final _searchController = TextEditingController();
   String _selectedCategory = 'ALL';
 
-  // Sample verified audio items strictly adhering to ct_content_items and ct_categories
-  final List<ContentItemModel> _audioItems = const [
-    ContentItemModel(
-      id: 'audio-catalog-1',
-      title: 'شرح ثلاثة الأصول - الدرس الأول',
-      description: 'شرح مفصل لمتن ثلاثة الأصول وأدلتها لشيخ الإسلام محمد بن عبد الوهاب',
-      type: AppConstants.typeAudio,
-      url: 'https://example.com/audio/usool-1.mp3',
-      author: AppConstants.sheikhName,
-      durationSeconds: 2700, // 45 mins
-      category: 'العقيدة',
-    ),
-    ContentItemModel(
-      id: 'audio-catalog-2',
-      title: 'شرح كتاب التوحيد - باب فضل التوحيد',
-      description: 'شرح باب فضل التوحيد وما يكفر من الذنوب',
-      type: AppConstants.typeAudio,
-      url: 'https://example.com/audio/tawheed-1.mp3',
-      author: AppConstants.sheikhName,
-      durationSeconds: 3600, // 60 mins
-      category: 'العقيدة',
-    ),
-    ContentItemModel(
-      id: 'audio-catalog-3',
-      title: 'تفسير سورة الفاتحة وقصار السور',
-      description: 'بيان معاني سورة الفاتحة وأحكامها وهداياتها',
-      type: AppConstants.typeAudio,
-      url: 'https://example.com/audio/fatiha.mp3',
-      author: AppConstants.sheikhName,
-      durationSeconds: 1920, // 32 mins
-      category: 'التفسير',
-    ),
-    ContentItemModel(
-      id: 'audio-catalog-4',
-      title: 'أحكام الطهارة والصلاة من زاد المستقنع',
-      description: 'بيان مسائل الطهارة وشروط الصلاة وأركانها',
-      type: AppConstants.typeAudio,
-      url: 'https://example.com/audio/tahara.mp3',
-      author: AppConstants.sheikhName,
-      durationSeconds: 3120, // 52 mins
-      category: 'الفقه',
-    ),
-    ContentItemModel(
-      id: 'audio-catalog-5',
-      title: 'معالم في السيرة النبوية - العهد المكي',
-      description: 'وقفات ودروس وعبر من السيرة النبوية الشريفة',
-      type: AppConstants.typeAudio,
-      url: 'https://example.com/audio/seerah-1.mp3',
-      author: AppConstants.sheikhName,
-      durationSeconds: 2400, // 40 mins
-      category: 'السيرة',
-    ),
-  ];
+  List<ContentItemModel> _audioItems = const [];
+  bool _isLoading = true;
+  String? _errorMessage;
 
-  final List<String> _categories = const [
-    'ALL',
-    'العقيدة',
-    'الفقه',
-    'التفسير',
-    'السيرة',
-  ];
+  List<String> get _categories {
+    final values = _audioItems.map((e) => e.category).whereType<String>().where((e) => e.isNotEmpty).toSet().toList()..sort();
+    return ['ALL', ...values];
+  }
+
+
+  @override
+  void initState() {
+    super.initState();
+    _loadContent();
+  }
+
+  Future<void> _loadContent() async {
+    try {
+      final result = await ref.read(contentRepositoryProvider).getContentList(
+        type: AppConstants.typeAudio,
+        limit: 100,
+        locale: 'ar',
+      );
+      if (!mounted) return;
+      setState(() {
+        _audioItems = result.items;
+        _isLoading = false;
+        _errorMessage = null;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _isLoading = false;
+        _errorMessage = 'تعذر تحميل الصوتيات من الخادم';
+      });
+    }
+  }
 
   @override
   void dispose() {
@@ -114,7 +93,22 @@ class _AudioCatalogScreenState extends State<AudioCatalogScreen> {
       appBar: AppBar(
         title: const Text('الصوتيات والدروس'),
       ),
-      body: Column(
+      body: _isLoading
+          ? const Center(child: CircularProgressIndicator())
+          : _errorMessage != null
+              ? Center(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Icon(Icons.error_outline_rounded, size: 48),
+                      const SizedBox(height: 12),
+                      Text(_errorMessage!),
+                      const SizedBox(height: 12),
+                      ElevatedButton(onPressed: _loadContent, child: const Text('إعادة المحاولة')),
+                    ],
+                  ),
+                )
+              : Column(
         children: [
           // Search Field
           Padding(
@@ -299,19 +293,17 @@ class _AudioCatalogScreenState extends State<AudioCatalogScreen> {
                                     color: AppColors.primary,
                                   ),
                                   tooltip: 'التنزيل للاستماع بدون إنترنت',
-                                  onPressed: () {
-                                    // This used to confirm «تمت إضافة … إلى قائمة
-                                    // التنزيل» while nothing was queued: no writer
-                                    // for the queue exists, and no caller of
-                                    // saveDownloadedContent. POLICY-SEC-001
-                                    // category 3. See TECH-DEBT-016.
-                                    ScaffoldMessenger.of(context).showSnackBar(
-                                      const SnackBar(
-                                        content: Text(
-                                          'التنزيل للاستماع بدون إنترنت غير متاح بعد — الاستماع يعمل عبر الإنترنت',
-                                        ),
-                                      ),
-                                    );
+                                  onPressed: item.slug.isEmpty ? null : () async {
+                                    final messenger = ScaffoldMessenger.of(context);
+                                    messenger.showSnackBar(const SnackBar(content: Text('جاري تنزيل المادة…')));
+                                    try {
+                                      await ref.read(downloadsNotifierProvider.notifier).downloadContent(item);
+                                      if (!context.mounted) return;
+                                      messenger.showSnackBar(const SnackBar(content: Text('تم حفظ المادة بنجاح للاستخدام بدون إنترنت')));
+                                    } catch (error) {
+                                      if (!context.mounted) return;
+                                      messenger.showSnackBar(SnackBar(content: Text('فشل التنزيل: $error')));
+                                    }
                                   },
                                 ),
                               ],

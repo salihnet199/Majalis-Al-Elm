@@ -41,6 +41,8 @@ import { AdminTaxonomyController } from './presentation/admin-taxonomy.controlle
 import { AdminMediaController } from './presentation/admin-media.controller';
 import { RolesGuard } from './presentation/guards/roles.guard';
 import { JwtStrategy } from '../identity/infrastructure/adapters/jwt.strategy';
+import { USER_REPOSITORY } from '../identity/domain/ports/user.repository';
+import { buildMockUserRepo } from '../../testing/mock-user-repo';
 import { JwtRs256Adapter } from '../identity/infrastructure/adapters/jwt-rs256.adapter';
 
 import { CONTENT_ITEM_REPOSITORY, IContentItemRepository, ContentItemFilter, ContentItemPage } from './domain/ports/content-item.repository';
@@ -309,6 +311,13 @@ describe('BC02 Content Module — Integration Tests', () => {
       findByIds: jest.fn(async (ids: string[]) => ids.map((id) => ({ id, slug: 'mock-tag', createdAt: new Date() }))),
     };
 
+    // JwtStrategy now looks up the active user's role on every authenticated
+    // request. Test JWTs below are signed with a randomUUID() sub inline, so
+    // the role map is populated *after* signing — buildMockUserRepo reads it
+    // lazily (by reference) at request time, which is fine since it's only
+    // ever read after all three tokens above have been signed.
+    const roleById: Record<string, string> = {};
+
     const moduleFixture: TestingModule = await Test.createTestingModule({
       imports: [
         PassportModule.register({ defaultStrategy: 'jwt' }),
@@ -327,6 +336,7 @@ describe('BC02 Content Module — Integration Tests', () => {
         MediaUploadService,
         { provide: STORAGE_SERVICE, useValue: storage },
         { provide: ConfigService, useValue: mockConfigService },
+        { provide: USER_REPOSITORY, useValue: buildMockUserRepo(roleById) },
         { provide: CONTENT_ITEM_REPOSITORY, useValue: mockContentItemRepo },
         { provide: CATEGORY_REPOSITORY, useValue: mockCategoryRepo },
         { provide: AUTHOR_REPOSITORY, useValue: mockAuthorRepo },
@@ -349,9 +359,15 @@ describe('BC02 Content Module — Integration Tests', () => {
     jwtAdapter = moduleFixture.get<JwtRs256Adapter>(JwtRs256Adapter);
 
     // Generate test JWTs with different roles
-    editorToken = await jwtAdapter.signAccessToken({ sub: randomUUID(), email: 'editor@example.com', role: 'Editor', sessionId: randomUUID() });
-    adminToken = await jwtAdapter.signAccessToken({ sub: randomUUID(), email: 'admin@example.com', role: 'Admin', sessionId: randomUUID() });
-    userToken = await jwtAdapter.signAccessToken({ sub: randomUUID(), email: 'user@example.com', role: 'User', sessionId: randomUUID() });
+    const editorId = randomUUID();
+    const adminId = randomUUID();
+    const userId = randomUUID();
+    roleById[editorId] = 'Editor';
+    roleById[adminId] = 'Admin';
+    roleById[userId] = 'User';
+    editorToken = await jwtAdapter.signAccessToken({ sub: editorId, email: 'editor@example.com', role: 'Editor', sessionId: randomUUID() });
+    adminToken = await jwtAdapter.signAccessToken({ sub: adminId, email: 'admin@example.com', role: 'Admin', sessionId: randomUUID() });
+    userToken = await jwtAdapter.signAccessToken({ sub: userId, email: 'user@example.com', role: 'User', sessionId: randomUUID() });
   });
 
   afterAll(async () => {

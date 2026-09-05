@@ -2,9 +2,9 @@ name: CI — Lint · Type-Check · Test · Build
 
 on:
   pull_request:
-    branches: [main, develop]
+    branches: [master, develop]
   push:
-    branches: [develop]
+    branches: [master, develop]
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -24,8 +24,8 @@ jobs:
       postgres:
         image: postgres:16-alpine
         env:
-          POSTGRES_DB: alfajr_test
-          POSTGRES_USER: alfajr
+          POSTGRES_DB: majalis_elm_test
+          POSTGRES_USER: majalis_elm
           POSTGRES_PASSWORD: test_password
         ports:
           - 5432:5432
@@ -63,13 +63,16 @@ jobs:
         run: npx nx affected --target=type-check --parallel=3
 
       # ── Unit Tests ──────────────────────────────────────────────────────────
+      - name: Validate migrations
+        run: node scripts/migrate-validate.mjs
+
       - name: Unit Tests (affected)
         run: npx nx affected --target=test --parallel=3 --ci --coverage
         env:
           DATABASE_HOST: localhost
           DATABASE_PORT: 5432
-          DATABASE_NAME: alfajr_test
-          DATABASE_USER: alfajr
+          DATABASE_NAME: majalis_elm_test
+          DATABASE_USER: majalis_elm
           DATABASE_PASSWORD: test_password
           JWT_ACCESS_TOKEN_TTL: 900
           JWT_REFRESH_TOKEN_TTL: 604800
@@ -78,7 +81,44 @@ jobs:
       - name: Build (affected)
         run: npx nx affected --target=build --parallel=3
 
+      # ── Flutter Mobile Validation ───────────────────────────────────────────
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Flutter pub get
+        run: flutter pub get
+        working-directory: apps/mobile
+
+      - name: Flutter analyze
+        run: flutter analyze
+        working-directory: apps/mobile
+
+      - name: Flutter tests
+        run: flutter test
+        working-directory: apps/mobile
+
+      - name: Flutter Android release build
+        run: flutter build apk --release
+        working-directory: apps/mobile
+
+      # ── End-to-End Smoke Test ────────────────────────────────────────────────
+      # Starts backend with NODE_ENV=test, so JWT/storage test-only boot rules are used.
+      - name: Backend E2E smoke test
+        run: npx nx run backend-e2e:e2e --ci
+        env:
+          NODE_ENV: test
+          HOST: localhost
+          PORT: 3000
+          DATABASE_HOST: localhost
+          DATABASE_PORT: 5432
+          DATABASE_NAME: majalis_elm_test
+          DATABASE_USER: majalis_elm
+          DATABASE_PASSWORD: test_password
+
+
       # ── Security Audit ───────────────────────────────────────────────────────
       - name: npm audit (high severity)
         run: npm audit --audit-level=high
-        continue-on-error: true   # warn only in Phase 1; make blocking in Phase 2

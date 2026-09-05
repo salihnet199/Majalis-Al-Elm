@@ -289,6 +289,7 @@ describe('BC01 Identity — Integration Tests', () => {
     });
 
     mockRefreshRepo.update.mockImplementation(async (criteria: any, update: any) => {
+      let affected = 0;
       for (const token of tokenDb.values()) {
         let match = true;
         if (criteria.id !== undefined && token.id !== criteria.id) match = false;
@@ -302,8 +303,10 @@ describe('BC01 Identity — Integration Tests', () => {
         if (match) {
           Object.assign(token, update);
           tokenDb.set(token.id, token);
+          affected += 1;
         }
       }
+      return { affected };
     });
 
     // Re-wire createQueryBuilder (cleared by jest.clearAllMocks) with stateful implementation
@@ -471,6 +474,22 @@ describe('BC01 Identity — Integration Tests', () => {
       expect(res.body.refreshToken).not.toBe(initialTokens.refreshToken);
     });
 
+    it('allows only one concurrent refresh to rotate the same token', async () => {
+      const responses = await Promise.all([
+        request(app.getHttpServer())
+          .post('/api/v1/auth/token/refresh')
+          .send({ refreshToken: initialTokens.refreshToken }),
+        request(app.getHttpServer())
+          .post('/api/v1/auth/token/refresh')
+          .send({ refreshToken: initialTokens.refreshToken }),
+      ]);
+
+      const statuses = responses.map((response) => response.status).sort();
+      expect(statuses).toEqual([200, 401]);
+      const unauthorized = responses.find((response) => response.status === 401);
+      expect(unauthorized?.body.error.code).toBe('AUTH_TOKEN_EXPIRED');
+    });
+
     it('detects token REUSE — revokes entire family and returns 401', async () => {
       // Step 1: Rotate once (original → rotated)
       const rotatedRes = await request(app.getHttpServer())
@@ -562,6 +581,15 @@ describe('BC01 Identity — Integration Tests', () => {
       for (const token of tokenDb.values()) {
         expect(token.isRevoked).toBe(true);
       }
+    });
+
+    it('rejects an already-issued access token after suspension', async () => {
+      const res = await request(app.getHttpServer())
+        .get('/api/v1/auth/users/me')
+        .set('Authorization', `Bearer ${activeTokens.accessToken}`)
+        .expect(401);
+
+      expect(res.body.error.code).toBe('AUTH_ACCOUNT_SUSPENDED');
     });
 
     it('blocks CHANGE-PASSWORD for suspended user', async () => {

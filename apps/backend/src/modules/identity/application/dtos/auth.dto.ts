@@ -1,4 +1,4 @@
-import { IsEmail, IsString, MinLength, IsOptional } from 'class-validator';
+import { IsEmail, IsString, MinLength, MaxLength, IsOptional } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
 
 export class LoginEmailDto {
@@ -9,6 +9,7 @@ export class LoginEmailDto {
   @ApiProperty({ example: 'SecurePass123!' })
   @IsString()
   @MinLength(1)
+  @MaxLength(128)
   password!: string;
 }
 
@@ -16,6 +17,7 @@ export class RefreshTokenDto {
   @ApiProperty()
   @IsString()
   @MinLength(1)
+  @MaxLength(4096)
   refreshToken!: string;
 }
 
@@ -23,6 +25,7 @@ export class LogoutDto {
   @ApiProperty({ required: false })
   @IsOptional()
   @IsString()
+  @MaxLength(4096)
   refreshToken?: string;
 }
 
@@ -31,6 +34,7 @@ export class ChangePasswordDto {
   @ApiProperty()
   @IsString()
   @MinLength(1)
+  @MaxLength(128)
   currentPassword!: string;
 
   @ApiProperty({ minLength: 8 })

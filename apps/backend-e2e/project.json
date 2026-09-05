@@ -12,12 +12,12 @@
         "{workspaceRoot}/coverage/{e2eProjectRoot}"
       ],
       "dependsOn": [
-        "backend:build",
-        "backend:serve"
+        "backend:build:test",
+        "backend:serve:test"
       ],
       "options": {
         "jestConfig": "apps/backend-e2e/jest.config.cts",
-        "passWithNoTests": true
+        "passWithNoTests": false
       }
     }
   }

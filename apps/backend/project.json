@@ -19,6 +19,11 @@
           "env": {
             "NODE_ENV": "development"
           }
+        },
+        "test": {
+          "env": {
+            "NODE_ENV": "test"
+          }
         }
       }
     },
@@ -73,12 +78,15 @@
         },
         "production": {
           "buildTarget": "backend:build:production"
+        },
+        "test": {
+          "buildTarget": "backend:build:test"
         }
       }
     },
     "test": {
       "options": {
-        "passWithNoTests": true
+        "passWithNoTests": false
       }
     },
     "test-storage": {

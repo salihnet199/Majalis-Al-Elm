@@ -106,5 +106,14 @@ void main() {
 
       expect(authNotifier.state, const Unauthenticated());
     });
+
+    test('handleSessionExpired moves state to Unauthenticated with a useful message', () {
+      authNotifier.handleSessionExpired();
+
+      expect(
+        authNotifier.state,
+        const Unauthenticated(message: 'انتهت صلاحية الجلسة، يرجى تسجيل الدخول مجدداً'),
+      );
+    });
   });
 }

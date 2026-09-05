@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { DataSource, EntityManager, Repository } from 'typeorm';
 import { randomUUID } from 'crypto';
+import { isIPv4, isIPv6 } from 'node:net';
 import { AuditLogOrmEntity } from '../infrastructure/persistence/entities/audit-log.orm-entity';
 
 export interface AuditLogEntry {
@@ -74,22 +75,13 @@ export class AuditLogService {
    * Returns null for undefined/empty input — acceptable for internal requests
    * where no IP header is present.
    *
-   * TODO [Phase 2 — TECH-DEBT-001]: لا يتحقق هذا الـ method من صحة تنسيق IP
-   * بعد stripping. آمن حالياً لأن المصدر الوحيد هو req.ip من Express أو
-   * x-real-ip من Nginx — كلاهما موثوق ولا يأتي من مدخل مستخدم خارجي.
-   * قبل فتح أي مصدر IP خارجي غير موثوق (مثل إضافة IP من request body أو
-   * header مخصص)، أضف تحقق صريح:
-   *   import { isIPv4, isIPv6 } from 'net';
-   *   return (isIPv4(stripped) || isIPv6(stripped)) ? stripped : null;
-   * بدون هذا، قيمة مثل "::ffff:not-an-ip" ستُمرَّر وستفشل عند INET cast
-   * في PostgreSQL وقت التنفيذ.
    */
   private normalizeIp(raw?: string): string | null {
     if (!raw) return null;
     // Strip IPv4-mapped IPv6 prefix: "::ffff:1.2.3.4" → "1.2.3.4"
     const stripped = raw.replace(/^::ffff:/i, '');
-    // No format validation here — see TODO above before adding untrusted IP sources
-    return stripped.length > 0 ? stripped : null;
+    if (stripped.length === 0) return null;
+    return isIPv4(stripped) || isIPv6(stripped) ? stripped : null;
   }
 
   /**

@@ -40,6 +40,15 @@ export class JwtAuthGuard extends AuthGuard('jwt') {
   }
 
   handleRequest<TUser = AuthenticatedUser>(err: Error | null, user: TUser): TUser {
+    // JwtStrategy#validate() throws a specific, meaningful error (e.g.
+    // AUTH_ACCOUNT_SUSPENDED) when the signature is valid but the account
+    // is no longer usable. Passport hands that error to us here as `err` —
+    // if we collapse it to a generic AUTH_MISSING_TOKEN we both lose the
+    // ability for clients to react correctly and defeat the entire point of
+    // doing the active-user check inside the strategy.
+    if (err instanceof UnauthorizedException) {
+      throw err;
+    }
     if (err || !user) {
       throw new UnauthorizedException({
         code: 'AUTH_MISSING_TOKEN',

@@ -7,7 +7,7 @@ import 'auth_interceptor.dart';
 class ApiClient {
   late final Dio dio;
   final SecureStorageService secureStorage;
-  final void Function()? onSessionExpired;
+  void Function()? onSessionExpired;
 
   ApiClient({
     required this.secureStorage,
@@ -30,7 +30,7 @@ class ApiClient {
       AuthInterceptor(
         dio: dio,
         secureStorage: secureStorage,
-        onSessionExpired: onSessionExpired,
+        onSessionExpired: () => this.onSessionExpired?.call(),
       ),
     );
   }

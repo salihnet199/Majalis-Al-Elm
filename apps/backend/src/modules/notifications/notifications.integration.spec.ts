@@ -43,6 +43,8 @@ import { NotificationDispatcherWorker } from './infrastructure/workers/notificat
 import { RolesGuard } from './presentation/guards/roles.guard';
 
 import { JwtStrategy } from '../identity/infrastructure/adapters/jwt.strategy';
+import { USER_REPOSITORY } from '../identity/domain/ports/user.repository';
+import { buildMockUserRepo } from '../../testing/mock-user-repo';
 import { JwtRs256Adapter } from '../identity/infrastructure/adapters/jwt-rs256.adapter';
 
 import { UserDeviceOrmEntity } from './infrastructure/persistence/entities/user-device.orm-entity';
@@ -352,6 +354,12 @@ describe('BC04 Notifications Module — Integration Tests', () => {
         JwtStrategy,
         JwtRs256Adapter,
         { provide: ConfigService, useValue: mockConfigService },
+        { provide: USER_REPOSITORY, useValue: buildMockUserRepo({
+          [user1Id]: 'User',
+          [user2Id]: 'User',
+          [moderatorId]: 'Moderator',
+          [adminId]: 'Admin',
+        }) },
         { provide: NOTIFICATION_SENDER, useValue: mockSender },
         { provide: getRepositoryToken(UserDeviceOrmEntity), useValue: mockDeviceRepo },
         { provide: getRepositoryToken(NotificationPreferenceOrmEntity), useValue: mockPreferenceRepo },

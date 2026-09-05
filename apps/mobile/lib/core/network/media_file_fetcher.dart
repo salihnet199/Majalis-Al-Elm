@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:dio/dio.dart';
@@ -84,6 +85,79 @@ class MediaFileFetcher {
       );
     }
   }
+  /// Streams a presigned media URL directly to a temporary file, verifies that
+  /// the final byte count matches [expectedSize] when one is known, then atomically
+  /// moves it to [targetPath]. The completed file is therefore never exposed to
+  /// the player as a partial download.
+  Future<void> downloadToFile(
+    String url, {
+    required String targetPath,
+    int? expectedSize,
+    void Function(int received, int total)? onProgress,
+  }) async {
+    final tempPath = '$targetPath.part';
+    try {
+      await _dio.download(
+        url,
+        tempPath,
+        deleteOnError: true,
+        options: Options(responseType: ResponseType.bytes),
+        onReceiveProgress: onProgress,
+      );
+
+      final file = File(tempPath);
+      if (!await file.exists()) {
+        throw const AppException(
+          code: 'MEDIA_DOWNLOAD_FAILED',
+          message: 'لم يُنشأ ملف التنزيل، يرجى إعادة المحاولة',
+        );
+      }
+
+      final actualSize = await file.length();
+      if (actualSize <= 0) {
+        try { await file.delete(); } catch (_) {}
+        throw const AppException(
+          code: 'MEDIA_EMPTY_RESPONSE',
+          message: 'وصل الملف فارغاً من المخزن، يرجى إعادة المحاولة',
+        );
+      }
+      if (expectedSize != null && expectedSize > 0 && actualSize != expectedSize) {
+        try { await file.delete(); } catch (_) {}
+        throw AppException(
+          code: 'MEDIA_SIZE_MISMATCH',
+          message: 'حجم الملف المستلم لا يطابق الحجم الموثق على الخادم ($actualSize / $expectedSize بايت)',
+        );
+      }
+
+      final target = File(targetPath);
+      if (await target.exists()) await target.delete();
+      await file.rename(targetPath);
+    } on DioException catch (e) {
+      final status = e.response?.statusCode;
+      if (status == 403) {
+        throw const AppException(
+          code: 'MEDIA_URL_EXPIRED',
+          message: 'انتهت صلاحية رابط الملف، يرجى إعادة المحاولة',
+        );
+      }
+      if (status == 404) {
+        throw const AppException(
+          code: 'MEDIA_NOT_FOUND',
+          message: 'الملف غير موجود في المخزن',
+        );
+      }
+      throw AppException.fromDioException(
+        e,
+        fallbackMessage: 'تعذر تنزيل الملف من المخزن، يرجى المحاولة لاحقاً',
+      );
+    } finally {
+      final partial = File(tempPath);
+      try {
+        if (await partial.exists()) await partial.delete();
+      } catch (_) {}
+    }
+  }
+
 }
 
 final mediaFileFetcherProvider = Provider<MediaFileFetcher>((ref) {

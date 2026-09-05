@@ -7,6 +7,7 @@ import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_typography.dart';
 import '../../domain/models/content_item_model.dart';
 import '../../providers/media_source_provider.dart';
+import '../../../downloads/providers/downloads_notifier.dart';
 
 class PdfViewerScreen extends ConsumerStatefulWidget {
   final ContentItemModel item;
@@ -134,22 +135,22 @@ class _PdfViewerScreenState extends ConsumerState<PdfViewerScreen> {
               color: widget.item.isDownloaded ? AppColors.secondary : null,
             ),
             tooltip: widget.item.isDownloaded ? 'محفوظ محلياً' : 'التنزيل للقراءة بدون إنترنت',
-            onPressed: () {
-              // This used to say "جاري إضافة الكتاب إلى قائمة التنزيل" while
-              // nothing was queued and no file was written — a success message for
-              // an operation that does not exist (POLICY-SEC-001 category 3).
-              // The offline downloader is TECH-DEBT-016; until it exists the
-              // button states the truth.
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: Text(
-                    widget.item.isDownloaded
-                        ? 'الكتاب محفوظ بالفعل في المحفوظات'
-                        : 'التنزيل للقراءة بدون إنترنت غير متاح بعد — القراءة تعمل عبر الإنترنت',
-                  ),
-                ),
-              );
-            },
+            onPressed: widget.item.isDownloaded
+                ? () => ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('الكتاب محفوظ بالفعل في المحفوظات')),
+                    )
+                : () async {
+                    final messenger = ScaffoldMessenger.of(context);
+                    messenger.showSnackBar(const SnackBar(content: Text('جاري تنزيل الكتاب…')));
+                    try {
+                      await ref.read(downloadsNotifierProvider.notifier).downloadContent(widget.item);
+                      if (!mounted) return;
+                      messenger.showSnackBar(const SnackBar(content: Text('تم حفظ الكتاب بنجاح للاستخدام بدون إنترنت')));
+                    } catch (error) {
+                      if (!mounted) return;
+                      messenger.showSnackBar(SnackBar(content: Text('فشل التنزيل: $error')));
+                    }
+                  },
           ),
           IconButton(
             icon: const Icon(Icons.bookmark_border_rounded),

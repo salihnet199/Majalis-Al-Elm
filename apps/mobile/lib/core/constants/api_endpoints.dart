@@ -1,11 +1,33 @@
+import 'package:flutter/foundation.dart';
+
 class ApiEndpoints {
   ApiEndpoints._();
 
-  // Base URL (env-configurable with localhost fallback)
-  static const String baseUrl = String.fromEnvironment(
+  // Compile-time override for CI/release builds. When omitted, local development
+  // uses the correct host for the current Flutter target instead of sending an
+  // Android emulator to its own localhost.
+  static const String _configuredBaseUrl = String.fromEnvironment(
     'API_BASE_URL',
-    defaultValue: 'http://localhost:3000/api/v1',
+    defaultValue: '',
   );
+
+  static String get baseUrl {
+    if (_configuredBaseUrl.trim().isNotEmpty) {
+      return _configuredBaseUrl.trim().replaceFirst(RegExp(r'/+$'), '');
+    }
+    if (kIsWeb) return 'http://localhost:3000/api/v1';
+    switch (defaultTargetPlatform) {
+      case TargetPlatform.android:
+        return 'http://10.0.2.2:3000/api/v1';
+      case TargetPlatform.iOS:
+      case TargetPlatform.macOS:
+      case TargetPlatform.windows:
+      case TargetPlatform.linux:
+        return 'http://localhost:3000/api/v1';
+      case TargetPlatform.fuchsia:
+        return 'http://localhost:3000/api/v1';
+    }
+  }
 
   // BC01: Identity & Auth
   static const String registerEmail = '/auth/register/email';
@@ -15,7 +37,6 @@ class ApiEndpoints {
   static const String changePassword = '/auth/change-password';
   static const String userMe = '/auth/users/me';
 
-  // Auth (Phase 2 scope - Future endpoints per API-DESIGN.md)
   static const String registerPhoneInitiate = '/auth/register/phone/initiate';
   static const String registerPhoneVerify = '/auth/register/phone/verify';
   static const String loginPhoneInitiate = '/auth/login/phone/initiate';

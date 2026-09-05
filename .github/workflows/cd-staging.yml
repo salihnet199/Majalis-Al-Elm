@@ -2,7 +2,7 @@ name: CD — Deploy to Staging
 
 on:
   push:
-    branches: [main]
+    branches: [master]
 
 concurrency:
   group: cd-staging
@@ -11,7 +11,8 @@ concurrency:
 env:
   NODE_VERSION: '20.x'
   REGISTRY: ghcr.io
-  IMAGE_NAME: ${{ github.repository_owner }}/al-fajr-backend
+  IMAGE_NAME: ${{ github.repository_owner }}/majalis-elm-backend
+  STAGING_API_URL: https://api-staging.majalis-elm.app
 
 jobs:
   build-and-push:
@@ -69,7 +70,7 @@ jobs:
     timeout-minutes: 15
     environment:
       name: staging
-      url: https://api-staging.al-fajr.app
+      url: https://api-staging.majalis-elm.app
 
     steps:
       - name: Checkout
@@ -82,23 +83,33 @@ jobs:
           username: ${{ secrets.STAGING_USER }}
           key: ${{ secrets.STAGING_SSH_KEY }}
           script: |
-            set -e
-            cd /opt/al-fajr
+            set -euo pipefail
+            cd /opt/majalis-elm
 
-            # Pull latest image
+            # Keep the deployment checkout exactly on the commit that triggered CD.
+            git fetch origin master
+            git reset --hard origin/master
+
+            export BACKEND_IMAGE="${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:staging-latest"
+
+            # Pull latest backend image
             echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
-            docker compose -f infra/docker/compose.yaml -f infra/docker/compose.prod.yaml pull backend
+            docker compose -f docker-compose.prod.yml pull backend
 
-            # Run migrations (before swapping containers)
-            docker compose -f infra/docker/compose.yaml -f infra/docker/compose.prod.yaml \
-              run --rm backend npm run migration:run
+            # Ensure the custom PostgreSQL image (pg_uuidv7) is running before migrations.
+            docker compose -f docker-compose.prod.yml up -d postgres
+            docker compose -f docker-compose.prod.yml ps postgres
 
-            # Zero-downtime swap
-            docker compose -f infra/docker/compose.yaml -f infra/docker/compose.prod.yaml \
+            # Run migrations (before swapping backend containers)
+            docker compose -f docker-compose.prod.yml \
+              run --rm backend node scripts/migrate.mjs
+
+            # Start the backend and reverse proxy only after migrations succeed.
+            docker compose -f docker-compose.prod.yml \
               up -d --no-build backend nginx
 
             # Health check post-deploy
             sleep 10
-            curl -f https://api-staging.al-fajr.app/health || exit 1
+            curl -f "${{ env.STAGING_API_URL }}/health" || exit 1
 
             echo "✅ Staging deploy complete — $(date)"

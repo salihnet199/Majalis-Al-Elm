@@ -33,6 +33,15 @@ export class MediaTranscodeService {
    * attempts: 3 + backoff أسي → ثلاث محاولات قبل TRANSCODE_FAILED.
    */
   async enqueue(assetId: string, storageKey: string): Promise<void> {
+    const enabled = String(process.env.MEDIA_TRANSCODE_ENABLED ?? 'false').toLowerCase() === 'true';
+    if (!enabled) {
+      this.logger.warn(
+        `[Stage B] Transcoding disabled; keeping asset ${assetId} in PENDING state. ` +
+          'Set MEDIA_TRANSCODE_ENABLED=true only after the FFmpeg worker image is deployed.',
+      );
+      return;
+    }
+
     const job = await this.transcodeQueue.add(
       'transcode',
       { assetId, storageKey },

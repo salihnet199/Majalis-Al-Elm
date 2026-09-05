@@ -37,8 +37,13 @@ final authNotifierProvider = StateNotifierProvider<AuthNotifier, AuthState>((ref
     secureStorage: secureStorage,
   );
 
-  // Wire session expiration callback cleanly
-  apiClient.dio.interceptors.whereType<dynamic>();
+  // Wire session expiration into auth state. Without this callback the
+  // interceptor can clear secure storage while the UI remains in Authenticated
+  // state and never redirects to login.
+  apiClient.onSessionExpired = notifier.handleSessionExpired;
+  ref.onDispose(() {
+    apiClient.onSessionExpired = null;
+  });
 
   return notifier;
 });

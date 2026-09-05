@@ -22,7 +22,7 @@
     "build-apk": {
       "executor": "nx:run-commands",
       "options": {
-        "command": "flutter build apk",
+        "command": "flutter build apk --release",
         "cwd": "apps/mobile"
       }
     },

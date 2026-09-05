@@ -1,84 +1,67 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../../core/constants/app_constants.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_typography.dart';
 import '../../content/domain/models/content_item_model.dart';
+import '../../content/providers/content_provider.dart';
+import '../../downloads/providers/downloads_notifier.dart';
 
-class BookCatalogScreen extends StatefulWidget {
+class BookCatalogScreen extends ConsumerStatefulWidget {
   const BookCatalogScreen({super.key});
 
   @override
-  State<BookCatalogScreen> createState() => _BookCatalogScreenState();
+  ConsumerState<BookCatalogScreen> createState() => _BookCatalogScreenState();
 }
 
-class _BookCatalogScreenState extends State<BookCatalogScreen> {
+class _BookCatalogScreenState extends ConsumerState<BookCatalogScreen> {
   final _searchController = TextEditingController();
   String _selectedCategory = 'ALL';
   String _selectedAuthor = 'ALL';
 
-  // Sample verified books strictly adhering to ct_content_items, ct_categories, and ct_authors
-  final List<ContentItemModel> _bookItems = const [
-    ContentItemModel(
-      id: 'book-catalog-1',
-      title: 'كتاب التوحيد وإفراده بالعبادة',
-      description: 'كتاب جليل في بيان حقيقة التوحيد وأدلة الكتاب والسنة',
-      type: AppConstants.typePdf,
-      url: 'https://example.com/books/tawheed.pdf',
-      author: 'شيخ الإسلام محمد بن عبد الوهاب',
-      pageCount: 160,
-      fileSizeBytes: 3145728, // 3 MB
-      category: 'العقيدة',
-    ),
-    ContentItemModel(
-      id: 'book-catalog-2',
-      title: 'متن ثلاثة الأصول وأدلتها',
-      description: 'معرفة العبد ربه ودينه ونبيه محمداً صلى الله عليه وسلم',
-      type: AppConstants.typePdf,
-      url: 'https://example.com/books/usool.pdf',
-      author: 'شيخ الإسلام محمد بن عبد الوهاب',
-      pageCount: 64,
-      fileSizeBytes: 1572864, // 1.5 MB
-      category: 'العقيدة',
-    ),
-    ContentItemModel(
-      id: 'book-catalog-3',
-      title: 'عمدة الفقه في المذهب الحنبلي',
-      description: 'مختصر فقهي نافع في بيان أبواب العبادات والمعاملات',
-      type: AppConstants.typePdf,
-      url: 'https://example.com/books/umdah.pdf',
-      author: 'الإمام ابن قدامة المقدسي',
-      pageCount: 320,
-      fileSizeBytes: 5242880, // 5 MB
-      category: 'الفقه',
-    ),
-    ContentItemModel(
-      id: 'book-catalog-4',
-      title: 'تفسير جزء عم والفوائد المستنبطة',
-      description: 'تفسير ميسر لسور جزء عم مع ذكر الهدايات والآداب',
-      type: AppConstants.typePdf,
-      url: 'https://example.com/books/amma.pdf',
-      author: 'العلامة ابن عثيمين',
-      pageCount: 240,
-      fileSizeBytes: 4194304, // 4 MB
-      category: 'التفسير',
-    ),
-  ];
+  List<ContentItemModel> _bookItems = const [];
+  bool _isLoading = true;
+  String? _errorMessage;
 
-  final List<String> _categories = const [
-    'ALL',
-    'العقيدة',
-    'الفقه',
-    'التفسير',
-  ];
+  List<String> get _categories {
+    final values = _bookItems.map((e) => e.category).whereType<String>().where((e) => e.isNotEmpty).toSet().toList()..sort();
+    return ['ALL', ...values];
+  }
 
-  final List<String> _authors = const [
-    'ALL',
-    AppConstants.sheikhName,
-    'شيخ الإسلام محمد بن عبد الوهاب',
-    'الإمام ابن قدامة المقدسي',
-    'العلامة ابن عثيمين',
-  ];
+  List<String> get _authors {
+    final values = _bookItems.map((e) => e.author).where((e) => e.isNotEmpty).toSet().toList()..sort();
+    return ['ALL', ...values];
+  }
+
+
+  @override
+  void initState() {
+    super.initState();
+    _loadContent();
+  }
+
+  Future<void> _loadContent() async {
+    try {
+      final result = await ref.read(contentRepositoryProvider).getContentList(
+        type: AppConstants.typePdf,
+        limit: 100,
+        locale: 'ar',
+      );
+      if (!mounted) return;
+      setState(() {
+        _bookItems = result.items;
+        _isLoading = false;
+        _errorMessage = null;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _isLoading = false;
+        _errorMessage = 'تعذر تحميل الكتب من الخادم';
+      });
+    }
+  }
 
   @override
   void dispose() {
@@ -113,7 +96,22 @@ class _BookCatalogScreenState extends State<BookCatalogScreen> {
       appBar: AppBar(
         title: const Text('مكتبة الكتب و PDF'),
       ),
-      body: Column(
+      body: _isLoading
+          ? const Center(child: CircularProgressIndicator())
+          : _errorMessage != null
+              ? Center(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Icon(Icons.error_outline_rounded, size: 48),
+                      const SizedBox(height: 12),
+                      Text(_errorMessage!),
+                      const SizedBox(height: 12),
+                      ElevatedButton(onPressed: _loadContent, child: const Text('إعادة المحاولة')),
+                    ],
+                  ),
+                )
+              : Column(
         children: [
           // Search Field
           Padding(
@@ -336,19 +334,17 @@ class _BookCatalogScreenState extends State<BookCatalogScreen> {
                                     color: AppColors.primary,
                                   ),
                                   tooltip: 'التنزيل للقراءة بدون إنترنت',
-                                  onPressed: () {
-                                    // This used to confirm «تمت إضافة … إلى قائمة
-                                    // التنزيل» while nothing was queued: no writer
-                                    // for the queue exists, and no caller of
-                                    // saveDownloadedContent. POLICY-SEC-001
-                                    // category 3. See TECH-DEBT-016.
-                                    ScaffoldMessenger.of(context).showSnackBar(
-                                      const SnackBar(
-                                        content: Text(
-                                          'التنزيل للقراءة بدون إنترنت غير متاح بعد — القراءة تعمل عبر الإنترنت',
-                                        ),
-                                      ),
-                                    );
+                                  onPressed: item.slug.isEmpty ? null : () async {
+                                    final messenger = ScaffoldMessenger.of(context);
+                                    messenger.showSnackBar(const SnackBar(content: Text('جاري تنزيل المادة…')));
+                                    try {
+                                      await ref.read(downloadsNotifierProvider.notifier).downloadContent(item);
+                                      if (!context.mounted) return;
+                                      messenger.showSnackBar(const SnackBar(content: Text('تم حفظ المادة بنجاح للاستخدام بدون إنترنت')));
+                                    } catch (error) {
+                                      if (!context.mounted) return;
+                                      messenger.showSnackBar(SnackBar(content: Text('فشل التنزيل: $error')));
+                                    }
                                   },
                                 ),
                               ],

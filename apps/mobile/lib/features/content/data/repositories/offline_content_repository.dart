@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:isar/isar.dart';
 import '../../../../core/storage/collections/content_meta_collection.dart';
 import '../../../../core/storage/collections/offline_text_collection.dart';
@@ -55,6 +57,14 @@ class OfflineContentRepository implements IOfflineContentRepository {
       ..downloadedAt = DateTime.now();
 
     await isar.writeTxn(() async {
+      final file = File(localFilePath);
+      if (item.type == 'AUDIO' || item.type == 'PDF' || item.type == 'IMAGE') {
+        if (!await file.exists()) {
+          throw StateError('Downloaded file does not exist: $localFilePath');
+        }
+        meta.fileSizeBytes = await file.length();
+      }
+
       await isar.contentMetaCollections.putByContentId(meta);
 
       if (item.textContent != null && item.textContent!.isNotEmpty) {
@@ -73,14 +83,43 @@ class OfflineContentRepository implements IOfflineContentRepository {
   @override
   Future<List<ContentMetaCollection>> getDownloadedList({String? type}) async {
     final isar = await _db;
-    if (type == null || type == 'ALL') {
-      return isar.contentMetaCollections.where().sortByDownloadedAtDesc().findAll();
+    final candidates = (type == null || type == 'ALL')
+        ? await isar.contentMetaCollections.where().sortByDownloadedAtDesc().findAll()
+        : await isar.contentMetaCollections
+            .filter()
+            .contentTypeEqualTo(type)
+            .sortByDownloadedAtDesc()
+            .findAll();
+
+    // The OS may remove app-support files without touching Isar. Never expose a
+    // stale row as a usable offline download. Clean only stale file-backed rows;
+    // TEXT content has no local file and remains valid through OfflineTextCollection.
+    final staleIds = <String>[];
+    final valid = <ContentMetaCollection>[];
+    for (final item in candidates) {
+      if (item.contentType == 'TEXT') {
+        valid.add(item);
+        continue;
+      }
+      final path = item.localFilePath?.trim();
+      if (path != null && path.isNotEmpty && await File(path).exists()) {
+        valid.add(item);
+      } else {
+        staleIds.add(item.contentId);
+      }
     }
-    return isar.contentMetaCollections
-        .filter()
-        .contentTypeEqualTo(type)
-        .sortByDownloadedAtDesc()
-        .findAll();
+
+    if (staleIds.isNotEmpty) {
+      await isar.writeTxn(() async {
+        for (final id in staleIds) {
+          await isar.contentMetaCollections.deleteByContentId(id);
+          await isar.offlineTextCollections.deleteByContentId(id);
+          await isar.downloadQueueCollections.deleteByContentId(id);
+        }
+      });
+    }
+
+    return valid;
   }
 
   @override
@@ -98,9 +137,21 @@ class OfflineContentRepository implements IOfflineContentRepository {
   @override
   Future<bool> deleteDownloadedContent(String contentId) async {
     final isar = await _db;
+    final meta = await isar.contentMetaCollections.getByContentId(contentId);
+    if (meta?.localFilePath case final path?) {
+      final file = File(path);
+      try {
+        if (await file.exists()) await file.delete();
+      } catch (_) {}
+      final partial = File('$path.part');
+      try {
+        if (await partial.exists()) await partial.delete();
+      } catch (_) {}
+    }
     return isar.writeTxn(() async {
       final metaDeleted = await isar.contentMetaCollections.deleteByContentId(contentId);
       await isar.offlineTextCollections.deleteByContentId(contentId);
+      await isar.downloadQueueCollections.deleteByContentId(contentId);
       return metaDeleted;
     });
   }
@@ -137,11 +188,32 @@ class OfflineContentRepository implements IOfflineContentRepository {
     };
 
     final results = <ContentMetaCollection>[];
+    final staleIds = <String>[];
     for (final id in contentIds) {
       final item = await isar.contentMetaCollections.getByContentId(id);
-      if (item != null) {
+      if (item == null) continue;
+
+      if (item.contentType == 'TEXT') {
         results.add(item);
+        continue;
       }
+
+      final path = item.localFilePath?.trim();
+      if (path != null && path.isNotEmpty && await File(path).exists()) {
+        results.add(item);
+      } else {
+        staleIds.add(id);
+      }
+    }
+
+    if (staleIds.isNotEmpty) {
+      await isar.writeTxn(() async {
+        for (final id in staleIds) {
+          await isar.contentMetaCollections.deleteByContentId(id);
+          await isar.offlineTextCollections.deleteByContentId(id);
+          await isar.downloadQueueCollections.deleteByContentId(id);
+        }
+      });
     }
 
     return results;

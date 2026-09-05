@@ -131,6 +131,10 @@ export class JwtRs256Adapter {
     }
   }
 
+  getAccessTokenTtl(): number {
+    return this.accessTokenTtl;
+  }
+
   getRefreshTokenTtl(): number {
     return this.refreshTokenTtl;
   }

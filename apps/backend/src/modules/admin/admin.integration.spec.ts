@@ -140,10 +140,46 @@ describe('BC05 Admin — Integration Tests', () => {
   const SUPER_ADMIN_ID = randomUUID();
   const REGULAR_USER_ID = randomUUID();
 
+  // Shared across every describe block: JwtStrategy now resolves the acting
+  // user (and their role) on every authenticated request, so any mock that
+  // overrides mockUserRepo.findById / getPrimaryRole for a *target* user
+  // must still be able to answer for these three fixed *actor* identities,
+  // or authentication itself breaks for that describe block.
+  const ACTOR_ROLE_BY_ID: Record<string, string> = {
+    [ADMIN_ID]: 'Admin',
+    [SUPER_ADMIN_ID]: 'SuperAdmin',
+    [REGULAR_USER_ID]: 'User',
+  };
+  function makeActorUser(id: string): User {
+    return User.reconstitute({
+      id,
+      fullName: 'Test Actor',
+      email: null,
+      phoneE164: '+10000000000',
+      passwordHash: null,
+      locale: 'ar',
+      theme: 'system',
+      audioSpeed: 1.0,
+      isSuspended: false,
+      suspendedAt: null,
+      deletedAt: null,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    });
+  }
+
   beforeAll(async () => {
     // ── Mock: IUserRepository ──────────────────────────────────────────────
+    // JwtStrategy now looks up the active user on every authenticated request
+    // (suspension/soft-delete take effect immediately). Give findById a
+    // sensible default here so every describe block that authenticates as
+    // one of the three fixed actors above "just works"; individual tests
+    // still override this (mockResolvedValueOnce / mockImplementation) for
+    // the specific suspended/deleted/unknown-user cases they exercise.
     mockUserRepo = {
-      findById: jest.fn(),
+      findById: jest.fn(async (id: string) =>
+        ACTOR_ROLE_BY_ID[id] ? makeActorUser(id) : null,
+      ),
       findByEmail: jest.fn(),
       findByPhone: jest.fn(),
       existsByEmail: jest.fn(),
@@ -152,7 +188,7 @@ describe('BC05 Admin — Integration Tests', () => {
       findByIdWithPassword: jest.fn(),
       update: jest.fn(),
       assignRole: jest.fn().mockResolvedValue(undefined),
-      getPrimaryRole: jest.fn().mockResolvedValue('User'),
+      getPrimaryRole: jest.fn(async (id: string) => ACTOR_ROLE_BY_ID[id] ?? 'User'),
       countActiveSuperAdmins: jest.fn().mockResolvedValue(1),
       findAllPaginated: jest.fn(),
     };
@@ -482,13 +518,15 @@ describe('BC05 Admin — Integration Tests', () => {
       userDb.set(TARGET_USER_ID, u);
 
       mockUserRepo.findById.mockImplementation(async (id: string) =>
-        userDb.get(id) ?? null,
+        userDb.get(id) ?? (ACTOR_ROLE_BY_ID[id] ? makeActorUser(id) : null),
       );
       mockUserRepo.update.mockImplementation(async (user: User) => {
         userDb.set(user.id.value, user);
         return user;
       });
-      mockUserRepo.getPrimaryRole.mockResolvedValue('User');
+      mockUserRepo.getPrimaryRole.mockImplementation(
+        async (id: string) => ACTOR_ROLE_BY_ID[id] ?? 'User',
+      );
       mockUserRepo.assignRole.mockResolvedValue(undefined);
 
       mockUserRepo.findAllPaginated.mockResolvedValue({
@@ -530,7 +568,14 @@ describe('BC05 Admin — Integration Tests', () => {
 
     it('GET /admin/users/:id returns 404 for unknown user', async () => {
       const unknownId = randomUUID();
-      mockUserRepo.findById.mockResolvedValueOnce(null);
+      // Only the *target* lookup should miss — the actor (adminToken →
+      // ADMIN_ID) still needs to resolve via JwtStrategy's own findById call,
+      // which runs before the controller's lookup. mockResolvedValueOnce
+      // would apply to whichever call happens first (the actor's), not the
+      // target's, and wrongly turn this into a 401.
+      mockUserRepo.findById.mockImplementation(async (id: string) =>
+        id === unknownId ? null : userDb.get(id) ?? (ACTOR_ROLE_BY_ID[id] ? makeActorUser(id) : null),
+      );
 
       const res = await request(app.getHttpServer())
         .get(`/api/v1/admin/users/${unknownId}`)
@@ -738,10 +783,10 @@ describe('BC05 Admin — Integration Tests', () => {
       });
 
       mockUserRepo.findById.mockImplementation(async (id: string) =>
-        id === targetId ? superAdminUser : null,
+        id === targetId ? superAdminUser : ACTOR_ROLE_BY_ID[id] ? makeActorUser(id) : null,
       );
       mockUserRepo.getPrimaryRole.mockImplementation(async (id: string) =>
-        id === targetId ? 'SuperAdmin' : 'User',
+        id === targetId ? 'SuperAdmin' : ACTOR_ROLE_BY_ID[id] ?? 'User',
       );
       mockUserRepo.countActiveSuperAdmins.mockResolvedValue(activeCount);
       mockUserRepo.update.mockImplementation(async (u: User) => u);
@@ -846,8 +891,12 @@ describe('BC05 Admin — Integration Tests', () => {
         createdAt: new Date(),
         updatedAt: new Date(),
       });
-      mockUserRepo.findById.mockResolvedValue(regularUser);
-      mockUserRepo.getPrimaryRole.mockResolvedValue('User'); // NOT a SuperAdmin
+      mockUserRepo.findById.mockImplementation(async (id: string) =>
+        id === SECOND_SA_ID ? regularUser : ACTOR_ROLE_BY_ID[id] ? makeActorUser(id) : null,
+      );
+      mockUserRepo.getPrimaryRole.mockImplementation(async (id: string) =>
+        id === SECOND_SA_ID ? 'User' : ACTOR_ROLE_BY_ID[id] ?? 'User',
+      ); // target is NOT a SuperAdmin
       mockUserRepo.assignRole.mockResolvedValue(undefined);
 
       const res = await request(app.getHttpServer())

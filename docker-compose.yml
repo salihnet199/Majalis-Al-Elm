@@ -147,8 +147,15 @@ services:
       S3_BUCKET_NAME: ${S3_BUCKET_NAME:-majalis-elm-media}
       CORS_ORIGIN: ${CORS_ORIGIN:-http://localhost}
       LOG_LEVEL: ${LOG_LEVEL:-debug}
+      MEDIA_TRANSCODE_ENABLED: ${MEDIA_TRANSCODE_ENABLED:-false}
       THROTTLE_TTL: 60000
       THROTTLE_LIMIT: 200
+    command:
+      - sh
+      - -c
+      - >-
+        node scripts/migrate.mjs &&
+        npx nx serve backend --configuration=development
     volumes:
       # Source code (dev hot-reload)
       - ./apps/backend/src:/app/apps/backend/src:ro

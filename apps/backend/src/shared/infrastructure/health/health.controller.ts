@@ -11,7 +11,7 @@ import { ApiOperation, ApiTags } from '@nestjs/swagger';
  *
  * ADR-011: Lightweight Monitoring
  * - /health  → polled by Uptime Kuma + Docker HEALTHCHECK
- *             checks postgres + redis connectivity
+ *             checks PostgreSQL connectivity
  * - /ready   → used by Nginx reverse proxy to know when to route traffic
  *             fails during startup / migrations
  *
@@ -41,16 +41,16 @@ export class HealthController {
 
   /**
    * GET /ready
-   * Used by Nginx / docker-compose depends_on to gate traffic.
-   * Returns 503 during startup or active migrations.
-   * NOT monitored by Uptime Kuma (internal only).
+   * Used by Nginx to know whether the API can serve requests.
+   * Checks PostgreSQL instead of returning a constant so a broken database
+   * cannot be advertised as ready. NOT monitored by Uptime Kuma.
    */
   @Get('ready')
   @ApiOperation({ summary: 'Readiness check — used by reverse proxy, NOT Uptime Kuma' })
+  @HealthCheck()
   checkReady() {
-    // In Phase 1 this is a simple "up" check — same as health.
-    // In Phase 2+, this can check migration status from a Redis flag set
-    // during migration:run and cleared on completion.
-    return { status: 'ready' };
+    return this.health.check([
+      () => this.db.pingCheck('database', { timeout: 3000 }),
+    ]);
   }
 }

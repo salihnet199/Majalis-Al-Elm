@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { IsNull, Repository } from 'typeorm';
 import { User } from '../../domain/user.entity';
 import { IUserRepository } from '../../domain/ports/user.repository';
 import { UserOrmEntity } from './entities/user.orm-entity';
@@ -23,7 +23,7 @@ export class TypeOrmUserRepository implements IUserRepository {
 
   async findById(id: string): Promise<User | null> {
     const orm = await this.repo.findOne({
-      where: { id, deletedAt: undefined },
+      where: { id, deletedAt: IsNull() },
       relations: ['roles'],
     });
     return orm ? this.toDomain(orm) : null;
@@ -42,7 +42,7 @@ export class TypeOrmUserRepository implements IUserRepository {
 
   async findByPhone(phoneE164: string): Promise<User | null> {
     const orm = await this.repo.findOne({
-      where: { phoneE164, deletedAt: undefined },
+      where: { phoneE164, deletedAt: IsNull() },
       relations: ['roles'],
     });
     return orm ? this.toDomain(orm) : null;
@@ -50,12 +50,12 @@ export class TypeOrmUserRepository implements IUserRepository {
 
   async existsByEmail(email: string): Promise<boolean> {
     return this.repo.exists({
-      where: { email: email.toLowerCase() },
+      where: { email: email.toLowerCase(), deletedAt: IsNull() },
     });
   }
 
   async existsByPhone(phoneE164: string): Promise<boolean> {
-    return this.repo.exists({ where: { phoneE164 } });
+    return this.repo.exists({ where: { phoneE164, deletedAt: IsNull() } });
   }
 
   async save(user: User): Promise<User> {

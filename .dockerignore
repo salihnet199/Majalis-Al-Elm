@@ -1,0 +1,15 @@
+.git
+.github
+node_modules
+dist
+coverage
+.nx
+apps/mobile/build
+apps/mobile/.dart_tool
+apps/mobile/ios/Pods
+apps/mobile/android/.gradle
+secrets
+.env
+.env.*
+!.env.example
+*.log

@@ -8,6 +8,7 @@ import '../../../core/theme/app_typography.dart';
 import '../../auth/providers/auth_notifier.dart';
 import '../../auth/providers/auth_state.dart';
 import '../../content/domain/models/content_item_model.dart';
+import '../../content/providers/content_provider.dart';
 import '../../notifications/presentation/controllers/notifications_controller.dart';
 import '../../notifications/presentation/inbox/notification_inbox_screen.dart';
 
@@ -22,47 +23,37 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   String _selectedType = 'ALL';
   final _searchController = TextEditingController();
 
-  final List<ContentItemModel> _sampleItems = const [
-    ContentItemModel(
-      id: 'audio-001',
-      title: 'شرح ثلاثة الأصول وأدلتها',
-      description: 'درس صوتي يشرح أصول العقيدة الإسلامية الثلاثة مع الأدلة من الكتاب والسنة',
-      type: AppConstants.typeAudio,
-      url: 'https://example.com/audio/usul.mp3',
-      author: AppConstants.sheikhName,
-      category: 'العقيدة',
-      durationSeconds: 2700,
-    ),
-    ContentItemModel(
-      id: 'pdf-001',
-      title: 'كتاب التوحيد الذي هو حق الله على العبيد',
-      description: 'نسخة رقمية محققة من متن كتاب التوحيد مع الفهارس',
-      type: AppConstants.typePdf,
-      url: 'assets/sample.pdf',
-      author: AppConstants.sheikhName,
-      category: 'العقيدة',
-      pageCount: 120,
-    ),
-    ContentItemModel(
-      id: 'text-001',
-      title: 'منزلة الصلاة في الإسلام وأحكام تاركها',
-      description: 'بحث شرعي تأصيلي حول عظم شأن الصلاة وفضل المحافظة عليها في جماعة',
-      type: AppConstants.typeText,
-      url: '',
-      author: AppConstants.sheikhName,
-      category: 'الفقه',
-      textContent: 'بسم الله الرحمن الرحيم، الحمد لله رب العالمين والصلاة والسلام على نبينا محمد وعلى آله وصحبه أجمعين.\n\nإن الصلاة هي الركن الثاني من أركان الإسلام بعد الشهادتين، وهي عمود الدين الذي لا يقوم إلا به. وقد فرضها الله تعالى على نبيه في ليلة الإسراء والمعراج في السماء السابعة مباشرة بلا واسطة، دلالة على عظيم شأنها ومنزلتها الرفيعة.\n\nقال تعالى: {وَأَقِيمُوا الصَّلَاةَ وَآتُوا الزَّكَاةَ وَارْكَعُوا مَعَ الرَّاكِعِينَ}، وقال رسول الله صلى الله عليه وسلم: (بين الرجل وبين الشرك والكفر ترك الصلاة).\n\nوقد أجمع علماء المسلمين على وجوب المحافظة على الصلوات الخمس في أوقاتها مع جماعة المسلمين.',
-    ),
-    ContentItemModel(
-      id: 'image-001',
-      title: 'إنفوجرافيك: شروط وأركان وواجبات الصلاة',
-      description: 'رسم بياني تعليمي تفصيلي يوضح الفرق بين شروط الصلاة وأركانها وواجباتها وسننها',
-      type: AppConstants.typeImage,
-      url: 'https://example.com/images/salah_infographic.png',
-      author: AppConstants.sheikhName,
-      category: 'الفقه',
-    ),
-  ];
+  List<ContentItemModel> _items = const [];
+  bool _isLoading = true;
+  String? _errorMessage;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadContent();
+  }
+
+  Future<void> _loadContent() async {
+    try {
+      final result = await ref.read(contentRepositoryProvider).getContentList(
+        limit: 100,
+        locale: 'ar',
+      );
+      if (!mounted) return;
+      setState(() {
+        _items = result.items;
+        _isLoading = false;
+        _errorMessage = null;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _isLoading = false;
+        _errorMessage = 'تعذر تحميل أحدث المواد من الخادم';
+      });
+    }
+  }
+
 
   @override
   void dispose() {
@@ -93,7 +84,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     final authState = ref.watch(authNotifierProvider);
     final userName = authState is Authenticated ? authState.user.fullName : 'زائر كريم';
 
-    final filteredItems = _sampleItems.where((item) {
+    final filteredItems = _items.where((item) {
       final matchesType = _selectedType == 'ALL' || item.type == _selectedType;
       final query = _searchController.text.trim().toLowerCase();
       final matchesQuery = query.isEmpty ||
@@ -209,7 +200,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                 ),
                 const SizedBox(height: 6),
                 Text(
-                  'أهلاً بك، $userName · تصفح المواد والدروس المتاحة بدون إنترنت',
+                  'أهلاً بك، $userName · تصفح المواد والدروس المتاحة عبر المنصة',
                   style: AppTypography.bodySmall.copyWith(
                     color: Colors.white.withAlpha(220),
                   ),
@@ -281,7 +272,27 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           const SizedBox(height: 14),
 
           // Content Cards List
-          if (filteredItems.isEmpty)
+          if (_isLoading)
+            const Padding(
+              padding: EdgeInsets.symmetric(vertical: 40),
+              child: Center(child: CircularProgressIndicator()),
+            )
+          else if (_errorMessage != null)
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 32),
+              child: Center(
+                child: Column(
+                  children: [
+                    const Icon(Icons.error_outline_rounded, size: 48, color: AppColors.error),
+                    const SizedBox(height: 12),
+                    Text(_errorMessage!, textAlign: TextAlign.center),
+                    const SizedBox(height: 12),
+                    ElevatedButton(onPressed: _loadContent, child: const Text('إعادة المحاولة')),
+                  ],
+                ),
+              ),
+            )
+          else if (filteredItems.isEmpty)
             Padding(
               padding: const EdgeInsets.symmetric(vertical: 32),
               child: Center(
@@ -333,7 +344,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   String _getBadgeForType(ContentItemModel item) {
     switch (item.type) {
       case AppConstants.typeAudio:
-        return 'صوتية · 45 د';
+        final minutes = (item.durationSeconds ?? 0) ~/ 60;
+        return minutes > 0 ? 'صوتية · $minutes د' : 'صوتية';
       case AppConstants.typePdf:
         return 'كتاب PDF · ${item.pageCount ?? 1} ص';
       case AppConstants.typeText:

@@ -220,7 +220,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                         child: _buildSocialButton(
                           icon: Icons.g_mobiledata_rounded,
                           label: 'Google',
-                          onTap: isLoading ? null : _handleGoogleSignIn,
+                          isComingSoon: true,
                           iconColor: const Color(0xFFEA4335),
                         ),
                       ),
@@ -229,7 +229,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                         child: _buildSocialButton(
                           icon: Icons.apple_rounded,
                           label: 'Apple',
-                          onTap: isLoading ? null : _handleAppleSignIn,
+                          isComingSoon: true,
                         ),
                       ),
                       const SizedBox(width: 8),
@@ -274,28 +274,6 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
         ),
       ),
     );
-  }
-
-  Future<void> _handleGoogleSignIn() async {
-    final success = await ref.read(authNotifierProvider.notifier).loginWithGoogle(
-      idToken: 'google_oauth_token_${DateTime.now().millisecondsSinceEpoch}',
-      fullName: 'طالب علم (Google)',
-      email: 'student.google@majalis-elm.com',
-    );
-    if (success && mounted) {
-      context.go('/home');
-    }
-  }
-
-  Future<void> _handleAppleSignIn() async {
-    final success = await ref.read(authNotifierProvider.notifier).loginWithApple(
-      idToken: 'apple_oauth_token_${DateTime.now().millisecondsSinceEpoch}',
-      fullName: 'طالب علم (Apple)',
-      email: 'student.apple@majalis-elm.com',
-    );
-    if (success && mounted) {
-      context.go('/home');
-    }
   }
 
   Widget _buildSocialButton({

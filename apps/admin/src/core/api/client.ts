@@ -2,7 +2,16 @@ import axios, { AxiosError, InternalAxiosRequestConfig } from 'axios';
 import { useAuthStore } from '../stores/auth.store';
 import { ApiResponseEnvelope } from '../types/auth.types';
 
-export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000/api/v1';
+const configuredApiBaseUrl = import.meta.env.VITE_API_BASE_URL?.trim();
+
+if (import.meta.env.PROD && !configuredApiBaseUrl) {
+  throw new Error(
+    'VITE_API_BASE_URL is required for production admin builds. ' +
+      'Refusing to fall back to localhost.',
+  );
+}
+
+export const API_BASE_URL = configuredApiBaseUrl || 'http://localhost:3000/api/v1';
 
 export const apiClient = axios.create({
   baseURL: API_BASE_URL,
@@ -48,6 +57,10 @@ apiClient.interceptors.response.use(
     return response;
   },
   async (error: AxiosError<{ error?: { code?: string; message?: string } }>) => {
+    if (!error.config) {
+      return Promise.reject(error);
+    }
+
     const originalRequest = error.config as InternalAxiosRequestConfig & { _retry?: boolean };
 
     // Prevent retry loops on auth routes
@@ -58,6 +71,7 @@ apiClient.interceptors.response.use(
       !originalRequest.url?.includes('/auth/token/refresh')
     ) {
       if (isRefreshing) {
+        originalRequest._retry = true;
         return new Promise((resolve, reject) => {
           failedQueue.push({ resolve, reject });
         })
@@ -86,8 +100,14 @@ apiClient.interceptors.response.use(
           { refreshToken },
         );
 
-        const newAccessToken = response.data.data?.accessToken || (response.data as unknown as { accessToken: string }).accessToken;
-        const newRefreshToken = response.data.data?.refreshToken || (response.data as unknown as { refreshToken: string }).refreshToken;
+        const responseData = response.data.data ?? response.data;
+        const newAccessToken = (responseData as { accessToken?: unknown }).accessToken;
+        const newRefreshToken = (responseData as { refreshToken?: unknown }).refreshToken;
+
+        if (typeof newAccessToken !== 'string' || !newAccessToken ||
+            typeof newRefreshToken !== 'string' || !newRefreshToken) {
+          throw new Error('Refresh endpoint returned an invalid token pair');
+        }
 
         useAuthStore.getState().setTokens(newAccessToken, newRefreshToken);
         processQueue(null, newAccessToken);
