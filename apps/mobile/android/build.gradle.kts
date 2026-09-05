@@ -22,12 +22,12 @@ subprojects {
 
 subprojects {
     val configurePlugin = {
-        val android = project.extensions.findByName("android") as? com.android.build.gradle.BaseExtension
-        if (android != null) {
-            if (android.namespace == null) {
-                android.namespace = "dev.isar.${project.name.replace("-", "_")}"
+        val androidExt = project.extensions.findByName("android") as? com.android.build.gradle.BaseExtension
+        if (androidExt != null) {
+            if (androidExt.namespace == null) {
+                androidExt.namespace = "dev.isar.${project.name.replace("-", "_")}"
             }
-            android.compileSdkVersion(36)
+            androidExt.compileSdkVersion(36)
         }
     }
     if (project.state.executed) {
