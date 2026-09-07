@@ -1,13 +1,19 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
+import 'package:mobile/core/network/media_file_fetcher.dart';
 import 'package:mobile/core/storage/collections/content_meta_collection.dart';
+import 'package:mobile/features/content/data/repositories/content_repository.dart';
 import 'package:mobile/features/content/data/repositories/offline_content_repository.dart';
 import 'package:mobile/features/downloads/providers/downloads_notifier.dart';
 
 class MockOfflineContentRepository extends Mock implements IOfflineContentRepository {}
+class MockContentRepository extends Mock implements IContentRepository {}
+class MockMediaFileFetcher extends Mock implements MediaFileFetcher {}
 
 void main() {
   late MockOfflineContentRepository mockRepo;
+  late MockContentRepository mockContentRepo;
+  late MockMediaFileFetcher mockFileFetcher;
 
   final sampleItem = ContentMetaCollection()
     ..contentId = 'audio-1'
@@ -20,6 +26,8 @@ void main() {
 
   setUp(() {
     mockRepo = MockOfflineContentRepository();
+    mockContentRepo = MockContentRepository();
+    mockFileFetcher = MockMediaFileFetcher();
   });
 
   group('DownloadsNotifier Unit Tests', () {
@@ -27,7 +35,11 @@ void main() {
       when(() => mockRepo.getDownloadedList(type: 'ALL')).thenAnswer((_) async => [sampleItem]);
       when(() => mockRepo.getTotalStorageBytes()).thenAnswer((_) async => 10485760);
 
-      final notifier = DownloadsNotifier(repository: mockRepo);
+      final notifier = DownloadsNotifier(
+        repository: mockRepo,
+        contentRepository: mockContentRepo,
+        fileFetcher: mockFileFetcher,
+      );
       await notifier.loadDownloads();
 
       expect(notifier.state.items.length, 1);
@@ -40,7 +52,11 @@ void main() {
       when(() => mockRepo.getDownloadedList(type: 'AUDIO')).thenAnswer((_) async => [sampleItem]);
       when(() => mockRepo.getTotalStorageBytes()).thenAnswer((_) async => 10485760);
 
-      final notifier = DownloadsNotifier(repository: mockRepo);
+      final notifier = DownloadsNotifier(
+        repository: mockRepo,
+        contentRepository: mockContentRepo,
+        fileFetcher: mockFileFetcher,
+      );
       notifier.setFilterType('AUDIO');
 
       expect(notifier.state.selectedType, 'AUDIO');
@@ -51,7 +67,11 @@ void main() {
       when(() => mockRepo.getTotalStorageBytes()).thenAnswer((_) async => 10485760);
       when(() => mockRepo.searchOffline('الأصول')).thenAnswer((_) async => [sampleItem]);
 
-      final notifier = DownloadsNotifier(repository: mockRepo);
+      final notifier = DownloadsNotifier(
+        repository: mockRepo,
+        contentRepository: mockContentRepo,
+        fileFetcher: mockFileFetcher,
+      );
       await notifier.search('الأصول');
 
       expect(notifier.state.searchQuery, 'الأصول');
@@ -63,7 +83,11 @@ void main() {
       when(() => mockRepo.getDownloadedList(type: 'ALL')).thenAnswer((_) async => []);
       when(() => mockRepo.getTotalStorageBytes()).thenAnswer((_) async => 0);
 
-      final notifier = DownloadsNotifier(repository: mockRepo);
+      final notifier = DownloadsNotifier(
+        repository: mockRepo,
+        contentRepository: mockContentRepo,
+        fileFetcher: mockFileFetcher,
+      );
       await notifier.deleteItem('audio-1');
 
       verify(() => mockRepo.deleteDownloadedContent('audio-1')).called(1);

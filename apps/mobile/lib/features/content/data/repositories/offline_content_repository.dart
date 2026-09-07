@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:isar/isar.dart';
 import '../../../../core/storage/collections/content_meta_collection.dart';
+import '../../../../core/storage/collections/download_queue_collection.dart';
 import '../../../../core/storage/collections/offline_text_collection.dart';
 import '../../../../core/storage/isar_service.dart';
 import '../../../../core/utils/arabic_text_normalizer.dart';

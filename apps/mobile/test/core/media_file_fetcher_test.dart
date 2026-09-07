@@ -3,7 +3,7 @@ import 'dart:io';
 import 'package:dio/dio.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-import '../../lib/core/network/media_file_fetcher.dart';
+import 'package:mobile/core/network/media_file_fetcher.dart';
 
 void main() {
   test('MediaFileFetcher exposes a real fetcher instance', () {

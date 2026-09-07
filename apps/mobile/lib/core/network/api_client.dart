@@ -30,7 +30,7 @@ class ApiClient {
       AuthInterceptor(
         dio: dio,
         secureStorage: secureStorage,
-        onSessionExpired: () => this.onSessionExpired?.call(),
+        onSessionExpired: () => onSessionExpired?.call(),
       ),
     );
   }

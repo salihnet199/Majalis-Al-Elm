@@ -141,7 +141,7 @@ class DownloadsNotifier extends StateNotifier<DownloadsState> {
     void Function(int received, int total)? onProgress,
   }) async {
     if (item.id.trim().isEmpty) {
-      throw const StateError('Cannot download an item without an id');
+      throw StateError('Cannot download an item without an id');
     }
 
     final dir = await getApplicationSupportDirectory();
@@ -159,7 +159,7 @@ class DownloadsNotifier extends StateNotifier<DownloadsState> {
 
     if (item.type == 'TEXT') {
       if ((item.textContent ?? '').trim().isEmpty) {
-        throw const StateError('Text content is unavailable for offline storage');
+        throw StateError('Text content is unavailable for offline storage');
       }
       await repository.saveDownloadedContent(item: item, localFilePath: '');
       return;
@@ -170,7 +170,7 @@ class DownloadsNotifier extends StateNotifier<DownloadsState> {
         : null;
     final url = stream?.url ?? item.url;
     if (url.trim().isEmpty) {
-      throw const StateError('No downloadable URL was provided by the server');
+      throw StateError('No downloadable URL was provided by the server');
     }
 
     await fileFetcher.downloadToFile(
