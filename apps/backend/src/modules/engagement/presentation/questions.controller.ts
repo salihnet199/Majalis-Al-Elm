@@ -48,10 +48,17 @@ export class QuestionsController {
   }
 
   @Get(':id')
-  @ApiOperation({ summary: 'Get question details and its answers' })
+  @ApiOperation({
+    summary: 'Get question details and its approved answers',
+    description:
+      'Public detail view: only ever returns an APPROVED question with its APPROVED ' +
+      'answers. Questions pending/rejected/flagged review 404 exactly like a missing id — ' +
+      'moderators inspect those through the separate /admin/moderation/questions routes.',
+  })
   @ApiResponse({ status: 200, description: 'Question with answers' })
+  @ApiResponse({ status: 404, description: 'Question not found, not approved, or deleted' })
   async getQuestion(@Param('id') id: string) {
-    return this.questionService.findOne(id);
+    return this.questionService.findPublicQuestion(id);
   }
 
   @Post(':id/answers')

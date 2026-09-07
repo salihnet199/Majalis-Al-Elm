@@ -243,7 +243,15 @@ describe('BC03 Engagement Module — Integration Tests', () => {
       }),
       findOne: jest.fn(async (opts?: any) => {
         const id = opts?.where?.id;
-        return questionsStore.find((q) => q.id === id && q.deletedAt === null) || null;
+        const status = opts?.where?.status;
+        return (
+          questionsStore.find(
+            (q) =>
+              q.id === id &&
+              q.deletedAt === null &&
+              (status === undefined || q.status === status),
+          ) || null
+        );
       }),
       update: jest.fn(async (id: string, partial: any) => {
         const idx = questionsStore.findIndex((q) => q.id === id);
@@ -317,8 +325,12 @@ describe('BC03 Engagement Module — Integration Tests', () => {
         return entity;
       }),
       find: jest.fn(async (opts?: any) => {
+        const status = opts?.where?.status;
         return answersStore.filter(
-          (a) => a.questionId === opts?.where?.questionId && a.deletedAt === null,
+          (a) =>
+            a.questionId === opts?.where?.questionId &&
+            a.deletedAt === null &&
+            (status === undefined || a.status === status),
         );
       }),
     };
@@ -815,6 +827,144 @@ describe('BC03 Engagement Module — Integration Tests', () => {
     expect(res.body.data.title).toBe('سؤال مع إجابته');
     expect(res.body.data.answers.length).toBe(1);
     expect(res.body.data.answers[0].body).toBe('الإجابة الأولى');
+  });
+
+  // ── Regression: BC03-P1 — GET /questions/:id must not leak unmoderated
+  // content. Public detail view is APPROVED-only, same rule as list(); a
+  // question pending/rejected/flagged review must 404 exactly like a
+  // question that doesn't exist. See question.service.ts#findPublicQuestion.
+  describe('Regression BC03-P1: GET /questions/:id only exposes APPROVED content', () => {
+    function pushQuestion(status: string, overrides: Partial<QuestionOrmEntity> = {}) {
+      const id = randomUUID();
+      questionsStore.push({
+        id,
+        contentId: null,
+        userId: user1Id,
+        title: `سؤال بحالة ${status}`,
+        body: null,
+        status,
+        isAnswered: false,
+        moderatedBy: null,
+        moderatedAt: null,
+        deletedAt: null,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+        ...overrides,
+      } as QuestionOrmEntity);
+      return id;
+    }
+
+    it('GET approved question as authenticated user → 200', async () => {
+      const id = pushQuestion('APPROVED');
+      const res = await request(app.getHttpServer())
+        .get(`/questions/${id}`)
+        .set('Authorization', `Bearer ${user1Token}`)
+        .expect(200);
+      expect(res.body.data.id).toBe(id);
+    });
+
+    it('GET pending question as authenticated user → 404', async () => {
+      const id = pushQuestion('PENDING');
+      const res = await request(app.getHttpServer())
+        .get(`/questions/${id}`)
+        .set('Authorization', `Bearer ${user1Token}`)
+        .expect(404);
+      expect(res.body.error.code).toBe('NOT_FOUND');
+    });
+
+    it('GET rejected question as authenticated user → 404', async () => {
+      const id = pushQuestion('REJECTED');
+      await request(app.getHttpServer())
+        .get(`/questions/${id}`)
+        .set('Authorization', `Bearer ${user1Token}`)
+        .expect(404);
+    });
+
+    it('GET flagged question as authenticated user → 404', async () => {
+      const id = pushQuestion('FLAGGED');
+      await request(app.getHttpServer())
+        .get(`/questions/${id}`)
+        .set('Authorization', `Bearer ${user1Token}`)
+        .expect(404);
+    });
+
+    it('GET deleted (soft-deleted) question → 404', async () => {
+      const id = pushQuestion('APPROVED', { deletedAt: new Date() });
+      await request(app.getHttpServer())
+        .get(`/questions/${id}`)
+        .set('Authorization', `Bearer ${user1Token}`)
+        .expect(404);
+    });
+
+    it('GET random/nonexistent question → 404', async () => {
+      await request(app.getHttpServer())
+        .get(`/questions/${randomUUID()}`)
+        .set('Authorization', `Bearer ${user1Token}`)
+        .expect(404);
+    });
+
+    it('GET approved question returns only APPROVED answers, not PENDING/REJECTED ones', async () => {
+      const id = pushQuestion('APPROVED');
+      answersStore.push(
+        {
+          id: randomUUID(),
+          questionId: id,
+          userId: moderatorId,
+          body: 'إجابة معتمدة',
+          isAccepted: false,
+          answeredByRole: 'Moderator',
+          status: 'APPROVED',
+          deletedAt: null,
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        } as AnswerOrmEntity,
+        {
+          id: randomUUID(),
+          questionId: id,
+          userId: moderatorId,
+          body: 'إجابة قيد المراجعة',
+          isAccepted: false,
+          answeredByRole: 'Moderator',
+          status: 'PENDING',
+          deletedAt: null,
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        } as AnswerOrmEntity,
+        {
+          id: randomUUID(),
+          questionId: id,
+          userId: moderatorId,
+          body: 'إجابة مرفوضة',
+          isAccepted: false,
+          answeredByRole: 'Moderator',
+          status: 'REJECTED',
+          deletedAt: null,
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        } as AnswerOrmEntity,
+      );
+
+      const res = await request(app.getHttpServer())
+        .get(`/questions/${id}`)
+        .set('Authorization', `Bearer ${user1Token}`)
+        .expect(200);
+
+      expect(res.body.data.answers.length).toBe(1);
+      expect(res.body.data.answers[0].body).toBe('إجابة معتمدة');
+    });
+
+    it('moderator can inspect pending/rejected/flagged questions via /admin/moderation/questions', async () => {
+      const pendingId = pushQuestion('PENDING');
+      pushQuestion('APPROVED'); // control: shouldn't show up under status=PENDING
+
+      const res = await request(app.getHttpServer())
+        .get('/admin/moderation/questions?status=PENDING')
+        .set('Authorization', `Bearer ${moderatorToken}`)
+        .expect(200);
+
+      const ids = res.body.data.map((q: { id: string }) => q.id);
+      expect(ids).toContain(pendingId);
+    });
   });
 
   it('Scenario 14: QaFeatureGuard returns 503 SERVICE_UNAVAILABLE when feature_flag.qa is disabled', async () => {

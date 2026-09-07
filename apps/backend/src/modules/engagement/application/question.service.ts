@@ -70,17 +70,31 @@ export class QuestionService {
     };
   }
 
-  // ── get one ───────────────────────────────────────────────────────────────
-  async findOne(questionId: string) {
+  // ── get one (public) ─────────────────────────────────────────────────────
+  /**
+   * Public detail view — GET /questions/:id.
+   *
+   * Deliberately separate from moderation access: this method must only ever
+   * return APPROVED content, the same rule list() already applies. A question
+   * awaiting review, rejected, or flagged is treated exactly like a missing
+   * one (404) — it must never be reachable just by knowing/guessing its id.
+   * Moderators/Admins inspect non-approved questions through
+   * QuestionService#listPending() (used by AdminModerationController), which
+   * carries its own RolesGuard — never through this endpoint.
+   *
+   * Answers are filtered the same way: an approved question must not leak
+   * PENDING/REJECTED/FLAGGED answers to it.
+   */
+  async findPublicQuestion(questionId: string) {
     const question = await this.questionRepo.findOne({
-      where: { id: questionId, deletedAt: IsNull() },
+      where: { id: questionId, deletedAt: IsNull(), status: 'APPROVED' },
     });
     if (!question) {
       throw new NotFoundException({ code: 'NOT_FOUND', message: 'Question not found' });
     }
 
     const answers = await this.answerRepo.find({
-      where: { questionId, deletedAt: IsNull() },
+      where: { questionId, deletedAt: IsNull(), status: 'APPROVED' },
       order: { createdAt: 'ASC' },
     });
 
