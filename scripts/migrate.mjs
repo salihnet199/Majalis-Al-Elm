@@ -41,6 +41,38 @@ try {
     .filter((file) => /^\d+_.+\.sql$/.test(file))
     .sort();
 
+  // Ordering safety: every migration in this project uses a 3-digit
+  // zero-padded numeric prefix (000, 001, ... 043), which is what makes the
+  // plain string .sort() above equivalent to numeric order. That's a naming
+  // *convention*, not something enforced anywhere — a future file added
+  // without zero-padding (e.g. "44_x.sql" next to "005_y.sql") would sort
+  // as a string ("44_x.sql" < "005_y.sql") and silently apply out of the
+  // intended order. Fail loudly instead of trusting the convention forever.
+  const versions = files.map((file) => {
+    const match = /^(\d+)_/.exec(file);
+    return match ? { file, digits: match[1], version: Number(match[1]) } : null;
+  });
+
+  const malformed = versions.find(
+    (entry) => entry === null || entry.digits.length !== 3,
+  );
+  if (malformed) {
+    const label = malformed ? malformed.file : '(unknown)';
+    throw new Error(
+      `Invalid migration filename "${label}": expected a 3-digit zero-padded numeric ` +
+        'prefix (e.g. "044_add_thing.sql"), matching every existing migration in this directory.',
+    );
+  }
+
+  for (let i = 1; i < versions.length; i++) {
+    if (versions[i].version <= versions[i - 1].version) {
+      throw new Error(
+        `Migration versions must be strictly increasing: "${versions[i - 1].file}" ` +
+          `(${versions[i - 1].version}) is not less than "${versions[i].file}" (${versions[i].version}).`,
+      );
+    }
+  }
+
   const { rows } = await client.query('SELECT filename, checksum FROM schema_migrations ORDER BY filename');
   const applied = new Map(rows.map((row) => [row.filename, row.checksum]));
   let appliedCount = applied.size;

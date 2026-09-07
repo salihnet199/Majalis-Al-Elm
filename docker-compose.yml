@@ -3,17 +3,23 @@
 # Services:
 #   postgres    — PostgreSQL 16 with pg_uuidv7 + citext + pgcrypto (custom image)
 #   minio       — S3-compatible object storage (ADR-013 local vendor)
+#   redis       — BullMQ connection (ADR-013 Stage B) — see note below
 #   backend     — NestJS in development mode (ts-node, hot-reload)
 #   nginx       — Reverse proxy (mirrors production routing)
 #
-# Redis: NOT included in Phase 1 (YAGNI).
-#   ThrottlerModule uses in-memory storage in Phase 1 (app.module.ts: storage: undefined).
-#   Redis will be added in Phase 2 when rate-limit persistence across instances is needed.
+# Redis: added back after Stage B (ADR-013). The original Phase 1 plan was to
+#   skip it (ThrottlerModule ran in-memory, storage: undefined) — that's still
+#   true for rate limiting. But QueueModule (queue.module.ts) now calls
+#   BullModule.forRootAsync() unconditionally at AppModule bootstrap, and
+#   throws if REDIS_URL is unset, REGARDLESS of MEDIA_TRANSCODE_ENABLED. So as
+#   of Stage B the backend cannot boot AT ALL without Redis reachable, even
+#   with transcoding fully disabled. This service exists so `docker compose up`
+#   actually works locally; production still points REDIS_URL at Upstash.
 #
 # Usage:
 #   1. cp .env.example .env.local   (then fill in secrets)
 #   2. bash scripts/gen-jwt-keys.sh  (generates RS256 key pair in secrets/)
-#   3. docker compose --env-file .env.local up -d postgres minio
+#   3. docker compose --env-file .env.local up -d postgres minio redis
 #   4. node scripts/ensure-media-bucket.mjs   (creates the media bucket — ADR-013)
 #   5. docker compose --env-file .env.local up
 #   6. docker compose exec backend npx ts-node \
@@ -103,6 +109,25 @@ services:
   # derived/ tiering) are deliberately NOT applied locally. They are storage-cost
   # controls for the production bucket and will be configured on R2 at deployment.
 
+  # ── Redis — BullMQ connection (ADR-013 Stage B) ────────────────────────────
+  # Local stand-in for Upstash. No auth/TLS locally (matches REDIS_URL=redis://
+  # in .env.example); production points REDIS_URL at a real rediss:// Upstash
+  # URL instead — no code change, env-only, same pattern as the S3 vendor swap.
+  redis:
+    image: redis:7-alpine
+    container_name: majalis-elm-redis
+    restart: unless-stopped
+    ports:
+      - '6379:6379'
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 5s
+
   # ── NestJS Backend ─────────────────────────────────────────────────────────
   # Runs in development mode — ts-node with watch for hot-reload.
   # Production: build the image with target=production from apps/backend/Dockerfile.
@@ -119,6 +144,8 @@ services:
         condition: service_healthy
       minio:
         condition: service_started
+      redis:
+        condition: service_healthy
     environment:
       NODE_ENV: development
       PORT: 3000
@@ -128,6 +155,7 @@ services:
       DATABASE_USER: ${DATABASE_USER:-majaliselm}
       DATABASE_PASSWORD: ${DATABASE_PASSWORD}
       DATABASE_SSL: 'false'
+      REDIS_URL: redis://redis:6379
       JWT_PRIVATE_KEY_PATH: /run/secrets/jwt_private_key
       JWT_PUBLIC_KEY_PATH: /run/secrets/jwt_public_key
       JWT_ACCESS_TOKEN_TTL: ${JWT_ACCESS_TOKEN_TTL:-900}
@@ -190,3 +218,5 @@ volumes:
     name: majalis-elm-postgres-data
   minio_data:
     name: majalis-elm-minio-data
+  redis_data:
+    name: majalis-elm-redis-data

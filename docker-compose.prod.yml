@@ -35,6 +35,7 @@ services:
       DATABASE_USER: ${DATABASE_USER:?DATABASE_USER is required}
       DATABASE_PASSWORD: ${DATABASE_PASSWORD:?DATABASE_PASSWORD is required}
       DATABASE_SSL: ${DATABASE_SSL:-false}
+      REDIS_URL: ${REDIS_URL:?REDIS_URL is required (ADR-013 Stage B — Upstash or managed Redis; the backend refuses to boot without it, regardless of MEDIA_TRANSCODE_ENABLED)}
       JWT_PRIVATE_KEY_PATH: /run/secrets/jwt_private_key
       JWT_PUBLIC_KEY_PATH: /run/secrets/jwt_public_key
       JWT_ACCESS_TOKEN_TTL: ${JWT_ACCESS_TOKEN_TTL:-900}

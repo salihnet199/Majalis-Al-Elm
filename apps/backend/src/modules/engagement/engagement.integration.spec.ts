@@ -965,6 +965,15 @@ describe('BC03 Engagement Module — Integration Tests', () => {
       const ids = res.body.data.map((q: { id: string }) => q.id);
       expect(ids).toContain(pendingId);
     });
+
+    it('POST /questions/:id/answers on a PENDING (not-yet-approved) question → 404', async () => {
+      const id = pushQuestion('PENDING');
+      await request(app.getHttpServer())
+        .post(`/questions/${id}/answers`)
+        .set('Authorization', `Bearer ${moderatorToken}`)
+        .send({ body: 'محاولة إجابة على سؤال لم يُعتمد بعد' })
+        .expect(404);
+    });
   });
 
   it('Scenario 14: QaFeatureGuard returns 503 SERVICE_UNAVAILABLE when feature_flag.qa is disabled', async () => {

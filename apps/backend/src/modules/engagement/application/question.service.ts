@@ -131,8 +131,12 @@ export class QuestionService {
     dto: CreateAnswerDto,
     user: JwtPayload,
   ): Promise<object> {
+    // Same 404-for-non-approved contract as findPublicQuestion(): answering
+    // a question the asker/public can't even see yet doesn't make sense, and
+    // this endpoint must not leak PENDING/REJECTED/FLAGGED question ids to
+    // authenticated users any more than the GET endpoint does.
     const question = await this.questionRepo.findOne({
-      where: { id: questionId, deletedAt: IsNull() },
+      where: { id: questionId, deletedAt: IsNull(), status: 'APPROVED' },
     });
     if (!question) {
       throw new NotFoundException({ code: 'NOT_FOUND', message: 'Question not found' });
