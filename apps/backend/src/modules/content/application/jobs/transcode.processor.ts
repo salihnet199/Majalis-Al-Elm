@@ -16,7 +16,7 @@
  * and old queued jobs fail visibly instead of fabricating completion.
  */
 import { Processor, WorkerHost, OnWorkerEvent } from '@nestjs/bullmq';
-import { Inject, Logger } from '@nestjs/common';
+import { Logger } from '@nestjs/common';
 import { Job } from 'bullmq';
 import { DataSource } from 'typeorm';
 import { MEDIA_TRANSCODE_QUEUE, TranscodeJobData } from '../../../../shared/infrastructure/queue/media-transcode.queue';

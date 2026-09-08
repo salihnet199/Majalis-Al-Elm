@@ -26,12 +26,17 @@ export class JwtStrategy extends PassportStrategy(Strategy, 'jwt') {
   ) {
     const isTest = process.env.NODE_ENV === 'test';
     const publicKey = JwtStrategy.resolvePublicKey(configService, isTest);
+    // Algorithm follows the KEY THAT WAS ACTUALLY LOADED, not NODE_ENV alone:
+    // a hybrid setup (NODE_ENV=test with real JWT_PUBLIC_KEY_PATH configured,
+    // e.g. a realistic local/E2E smoke test) must verify RS256 tokens signed
+    // with those real keys, mirroring JwtRs256Adapter's usingTestSecret logic.
+    const usingTestSecret = publicKey === TEST_ONLY_JWT_SECRET;
 
     super({
       jwtFromRequest: ExtractJwt.fromAuthHeaderAsBearerToken(),
       ignoreExpiration: false,
       secretOrKey: publicKey,
-      algorithms: isTest ? ['HS256'] : ['RS256'],
+      algorithms: usingTestSecret ? ['HS256'] : ['RS256'],
     });
   }
 

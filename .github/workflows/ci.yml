@@ -34,6 +34,15 @@ jobs:
           --health-interval 10s
           --health-timeout 5s
           --health-retries 5
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
 
 
     steps:
@@ -106,6 +115,9 @@ jobs:
 
       # ── End-to-End Smoke Test ────────────────────────────────────────────────
       # Starts backend with NODE_ENV=test, so JWT/storage test-only boot rules are used.
+      # REDIS_URL is required unconditionally by QueueModule (BullMQ) even in
+      # test — without it the app crashes at Nest bootstrap before /health is
+      # ever reachable, so this step never actually passed without it.
       - name: Backend E2E smoke test
         run: npx nx run backend-e2e:e2e --ci
         env:
@@ -117,6 +129,7 @@ jobs:
           DATABASE_NAME: majalis_elm_test
           DATABASE_USER: majalis_elm
           DATABASE_PASSWORD: test_password
+          REDIS_URL: redis://localhost:6379
 
 
       # ── Security Audit ───────────────────────────────────────────────────────

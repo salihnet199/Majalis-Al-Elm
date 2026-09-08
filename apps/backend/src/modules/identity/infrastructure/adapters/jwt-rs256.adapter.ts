@@ -39,6 +39,17 @@ export class JwtRs256Adapter {
   private readonly publicKey: string;
   private readonly accessTokenTtl: number;
   private readonly refreshTokenTtl: number;
+  /**
+   * True only when NO real key material was configured and we fell back to
+   * TEST_ONLY_JWT_SECRET. Deciding the algorithm from this (rather than from
+   * NODE_ENV alone) means a hybrid setup — NODE_ENV=test with real RS256 keys
+   * supplied via JWT_*_KEY_PATH, e.g. a realistic local/E2E smoke test — signs
+   * and verifies with RS256 using the real keys instead of crashing with
+   * "secretOrPrivateKey must be a symmetric key when using HS256" (jsonwebtoken
+   * rejects PEM material for HS256). Production behavior is unchanged: real
+   * deployments always provide real keys, so this is always false there.
+   */
+  private readonly usingTestSecret: boolean;
 
   constructor(
     private readonly jwtService: JwtService,
@@ -48,6 +59,7 @@ export class JwtRs256Adapter {
     this.refreshTokenTtl = this.configService.get<number>('jwt.refreshTokenTtl', 604800);
     this.privateKey = this.loadKey('private');
     this.publicKey = this.loadKey('public');
+    this.usingTestSecret = this.privateKey === TEST_ONLY_JWT_SECRET;
   }
 
   private loadKey(type: 'private' | 'public'): string {
@@ -80,7 +92,7 @@ export class JwtRs256Adapter {
   }
 
   async signAccessToken(payload: JwtPayload): Promise<string> {
-    const isTest = process.env.NODE_ENV === 'test';
+    const isTest = this.usingTestSecret;
     return this.jwtService.signAsync(
       { sub: payload.sub, email: payload.email, role: payload.role, sessionId: payload.sessionId },
       {
@@ -92,7 +104,7 @@ export class JwtRs256Adapter {
   }
 
   async signRefreshToken(payload: Pick<JwtPayload, 'sub' | 'sessionId'>): Promise<string> {
-    const isTest = process.env.NODE_ENV === 'test';
+    const isTest = this.usingTestSecret;
     return this.jwtService.signAsync(
       { sub: payload.sub, sessionId: payload.sessionId, type: 'refresh' },
       {
@@ -104,7 +116,7 @@ export class JwtRs256Adapter {
   }
 
   async verifyAccessToken(token: string): Promise<JwtPayload> {
-    const isTest = process.env.NODE_ENV === 'test';
+    const isTest = this.usingTestSecret;
     try {
       return await this.jwtService.verifyAsync<JwtPayload>(token, {
         algorithms: isTest ? ['HS256'] : ['RS256'],
@@ -116,7 +128,7 @@ export class JwtRs256Adapter {
   }
 
   async verifyRefreshToken(token: string): Promise<{ sub: string; sessionId: string }> {
-    const isTest = process.env.NODE_ENV === 'test';
+    const isTest = this.usingTestSecret;
     try {
       const payload = await this.jwtService.verifyAsync<{ sub: string; sessionId: string; type: string }>(token, {
         algorithms: isTest ? ['HS256'] : ['RS256'],
