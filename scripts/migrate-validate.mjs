@@ -63,11 +63,61 @@ function preprocessSql(sql) {
     .replace(/CHECK\s*\(\s*char_length\s*\([^)]+\)\s+BETWEEN\s+\d+\s+AND\s+\d+\s*\)/gi, '')
     .replace(/CHECK\s*\(\s*char_length\s*\([^)]+\)\s*<=\s*\d+\s*\)/gi, '')
     .replace(/CHECK\s*\(\s*body\s+IS\s+NULL\s+OR\s+char_length\s*\([^)]+\)\s*<=\s*\d+\s*\)/gi, '')
-    // Seed INSERTs → idempotent (pg-mem لا يدعم rollback على error فيُعيد تشغيل الـ migration)
-    // في PostgreSQL الحقيقي: كل migration تُشغَّل مرة واحدة فقط
-    .replace(/INSERT INTO id_roles \(name,/gi, 'INSERT INTO id_roles (name,')
-    .replace(/\) VALUES\n([\s\S]*?);(\s*\n\s*\n\s*CREATE TABLE id_user_roles)/,
-      (match, values, after) => `) VALUES\n${values}\nON CONFLICT (name) DO NOTHING;${after}`);
+    // Regex-match CHECK constraints — pg-mem doesn't support the ~ operator
+    // between varchar and text ("operator does not exist: character varying
+    // ~ text"), even though real PostgreSQL does this routinely via implicit
+    // cast. Must strip the WHOLE `ALTER TABLE ... ADD CONSTRAINT name
+    // CHECK(...)` statement, not just the CHECK(...) clause — an
+    // ADD CONSTRAINT left with no CHECK clause is its own syntax error.
+    .replace(
+      /ALTER\s+TABLE\s+\S+\s+ADD\s+CONSTRAINT\s+\S+\s+CHECK\s*\([^;]*~[^;]*\)\s*;/gi,
+      'SELECT 1; -- regex CHECK constraint stub (unsupported by pg-mem)',
+    )
+    // ALTER TYPE ... ADD VALUE — real, valid PostgreSQL for extending an enum
+    // (migration 016/ADR-013 Stage B), but pg-mem's parser doesn't implement
+    // this statement at all ("failed to parse"). This validator's job is to
+    // catch broken SQL / missing tables-columns, not exhaustively track enum
+    // membership, so stub it out here rather than fail the migration.
+    .replace(/ALTER\s+TYPE\s+\S+\s+ADD\s+VALUE[^;]*;/gi, 'SELECT 1; -- ALTER TYPE ADD VALUE stub (unsupported by pg-mem)')
+    // Anonymous PL/pgSQL blocks (`DO $$ ... END; $$;`) — pg-mem has no
+    // PL/pgSQL interpreter ("Unknown language plpgsql"; note a DO block
+    // doesn't say the word "plpgsql" anywhere in its own text, since that's
+    // the implicit default language, so this needs its own pattern rather
+    // than reusing a generic "plpgsql" text search). In this codebase these
+    // blocks are only ever idempotent "ADD COLUMN IF NOT EXISTS" guards
+    // (see 016_transcode_queue_status.sql) — real PostgreSQL supports
+    // `ADD COLUMN IF NOT EXISTS` directly, so the DO wrapper only exists
+    // because older PostgreSQL versions lacked that clause. Stubbing the
+    // whole block is safe for structural validation here since nothing
+    // later in this migration set depends on the column it would have
+    // added.
+    .replace(/DO\s+\$\$[\s\S]*?\$\$\s*;/gi, 'SELECT 1; -- DO $$ ... $$ (plpgsql) stub, unsupported by pg-mem')
+    // Multi-row seed INSERT relying on a function-based DEFAULT (id UUID
+    // DEFAULT gen_random_uuid()) — pg-mem memoizes that function's result
+    // at the QUERY-PLAN level (proven experimentally: even splitting into
+    // fully separate client.query() calls with structurally-identical SQL
+    // shape still reuses the same generated id — it's not a multi-row-VALUES
+    // quirk, it's plan-level memoization), so all 5 seeded roles collide on
+    // the same generated id ("duplicate key value violates unique
+    // constraint id_roles_pkey"). This is a documented pg-mem gap (the tool
+    // itself suggests filing an issue upstream), not anything wrong with the
+    // migration — real PostgreSQL evaluates DEFAULT once per row correctly.
+    // The only robust workaround is to stop relying on the DEFAULT here:
+    // generate distinct ids in JS and inline them as literals. `name` is
+    // UNIQUE and this is idempotent seed data, so this changes nothing about
+    // the resulting rows or their meaning.
+    .replace(
+      /INSERT INTO id_roles \(name, description, is_system\) VALUES\n([\s\S]*?)\nON CONFLICT \(name\) DO NOTHING;/,
+      (_match, valuesBlock) => {
+        const rows = valuesBlock.match(/\([^()]*\)/g) || [];
+        return rows
+          .map(
+            (row) =>
+              `INSERT INTO id_roles (id, name, description, is_system) VALUES ('${randomUUID()}', ${row.slice(1, -1)}) ON CONFLICT (name) DO NOTHING;`,
+          )
+          .join('\n');
+      },
+    )
 }
 
 // ── init pg-mem ───────────────────────────────────────────────────────────
