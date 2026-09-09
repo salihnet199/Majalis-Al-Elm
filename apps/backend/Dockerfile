@@ -20,7 +20,6 @@ CMD ["npx", "nx", "serve", "backend", "--configuration=development"]
 
 # ─────────────────────── Build Stage ─────────────────────────────────────────
 FROM base AS builder
-ENV NODE_ENV=production
 
 COPY package*.json ./
 COPY nx.json ./
@@ -31,7 +30,22 @@ COPY apps/admin ./apps/admin
 COPY scripts ./scripts
 
 # This repository is an Nx monorepo, not an npm workspace monorepo.
+#
+# NODE_ENV=production must NOT be set before this install: npm treats it as
+# an implicit `--omit=dev`, silently dropping every devDependency —
+# including typescript, @types/node, nx, webpack-cli, and @nx/webpack, all
+# of which `nx build` below needs to run at all. That previously produced a
+# broken builder stage that installed 588 packages instead of 1790, with no
+# `nx` binary present, and failed the build with "Cannot find name 'process'"
+# / "Cannot find name 'module'" (missing @types/node) — confirmed by
+# reproducing both the broken and fixed installs side by side.
 RUN npm ci
+
+# Safe to set now: `nx build` doesn't need devDependencies removed to run,
+# and the packages next stage needs are pruned explicitly below regardless
+# of NODE_ENV, via the same --omit=dev flag rather than relying on the env
+# var implicitly.
+ENV NODE_ENV=production
 RUN npx nx build backend --configuration=production
 
 # Keep only runtime dependencies in the final image. The Nx webpack build emits

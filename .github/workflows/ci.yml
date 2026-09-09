@@ -76,7 +76,13 @@ jobs:
         run: node scripts/migrate-validate.mjs
 
       - name: Unit Tests (affected)
-        run: npx nx affected --target=test --parallel=3 --ci --coverage
+        # No --ci flag: nx broadcasts test-target CLI args to every affected
+        # project regardless of runner. backend uses Jest (understands --ci)
+        # but admin uses Vitest, which has no --ci option (CACError: Unknown
+        # option `--ci`) and would crash. GitHub Actions already sets CI=true
+        # as an ambient env var, which both Jest and Vitest detect natively —
+        # no explicit flag needed for either.
+        run: npx nx affected --target=test --parallel=3 --coverage
         env:
           DATABASE_HOST: localhost
           DATABASE_PORT: 5432
