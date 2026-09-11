@@ -221,6 +221,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                           icon: Icons.g_mobiledata_rounded,
                           label: 'Google',
                           isComingSoon: true,
+                          // لون Google الرسمي (Brand color) — يبقى كما هو عمدًا،
+                          // لا يُستبدل بألوان الهوية البصرية الخاصة بنا.
                           iconColor: const Color(0xFFEA4335),
                         ),
                       ),

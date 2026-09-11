@@ -236,7 +236,7 @@ class NotificationInboxScreen extends ConsumerWidget {
         decoration: BoxDecoration(
           color: item.isRead
               ? (isDark ? AppColors.mocha900.withAlpha(128) : Colors.white)
-              : (isDark ? AppColors.mocha850 : const Color(0xFFFBF8F2)),
+              : (isDark ? AppColors.mocha850 : AppColors.cream100),
           borderRadius: BorderRadius.circular(16),
           border: Border.all(
             color: item.isRead
@@ -327,7 +327,8 @@ class NotificationInboxScreen extends ConsumerWidget {
                 fontFamily: 'Amiri',
                 fontSize: 14,
                 height: 1.6,
-                color: isDark ? AppColors.cream300 : const Color(0xFF4A342A),
+                // ملاحظة: أقرب توكن رسمي متاح لهذا البني الغامق (كان 0xFF4A342A)
+                color: isDark ? AppColors.cream300 : AppColors.mocha700,
               ),
             ),
           ],
@@ -341,10 +342,10 @@ class NotificationInboxScreen extends ConsumerWidget {
       case 'lesson':
         return _CategoryConfig('درس علمي', Icons.menu_book_rounded, AppColors.gold500);
       case 'fatwa':
-        return _CategoryConfig('فتوى شرعية', Icons.gavel_rounded, const Color(0xFF06B6D4));
+        return _CategoryConfig('فتوى شرعية', Icons.gavel_rounded, AppColors.categoryFatwa);
       case 'announcement':
       default:
-        return _CategoryConfig('إعلان عام', Icons.campaign_rounded, const Color(0xFFA855F7));
+        return _CategoryConfig('إعلان عام', Icons.campaign_rounded, AppColors.categoryAnnouncement);
     }
   }
 }

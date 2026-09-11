@@ -60,7 +60,7 @@ class NotificationSettingsScreen extends ConsumerWidget {
               Container(
                 padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
-                  color: isDark ? AppColors.mocha900 : const Color(0xFFFAF7F2),
+                  color: isDark ? AppColors.mocha900 : AppColors.cream100,
                   borderRadius: BorderRadius.circular(16),
                   border: Border.all(color: AppColors.gold500.withAlpha(76)),
                 ),

@@ -33,6 +33,12 @@ class AppColors {
   static const Color error = Color(0xFFEF4444);
   static const Color info = Color(0xFF3B82F6);
 
+  // ألوان تصنيف الإشعارات (Notification Category Accents)
+  // 'درس علمي' يستخدم gold500 أدناه — هذان اللونان الإضافيان لتمييز
+  // الفتوى والإعلان العام بصريًا، خارج نطاق لوحة موكا/ذهبي الأساسية عمدًا.
+  static const Color categoryFatwa = Color(0xFF06B6D4);
+  static const Color categoryAnnouncement = Color(0xFFA855F7);
+
   // Warm Heritage Gold & Mocha Palette
   static const Color gold500 = Color(0xFFD4AF37);
   static const Color gold400 = Color(0xFFE5C158);

@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { THEME_COLORS } from '../../core/theme/theme.constants';
 import {
   Drawer,
   Button,
@@ -169,7 +170,7 @@ export const BulkUploadDrawer: React.FC<BulkUploadDrawerProps> = ({
           {stats.total > 0 && (
             <Badge
               count={`${stats.done}/${stats.total}`}
-              style={{ backgroundColor: stats.failed > 0 ? '#cf1322' : '#52c41a' }}
+              style={{ backgroundColor: stats.failed > 0 ? THEME_COLORS.error : THEME_COLORS.success }}
             />
           )}
         </Space>
@@ -179,8 +180,8 @@ export const BulkUploadDrawer: React.FC<BulkUploadDrawerProps> = ({
       open={open}
       onClose={onClose}
       styles={{
-        body: { padding: '16px', background: '#0f172a' },
-        header: { background: '#1e293b', borderBottom: '1px solid #334155' },
+        body: { padding: '16px', background: THEME_COLORS.bgBase },
+        header: { background: THEME_COLORS.bgContainer, borderBottom: `1px solid ${THEME_COLORS.borderMuted}` },
       }}
       footer={
         stats.total > 0 ? (

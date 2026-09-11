@@ -3,6 +3,7 @@ import { Alert, Button, Progress, Space, Tag, Typography, Upload } from 'antd';
 import { CloudUploadOutlined, DeleteOutlined, FileDoneOutlined, StopOutlined } from '@ant-design/icons';
 import { useQuery } from '@tanstack/react-query';
 import { apiClient } from '../../core/api/client';
+import { THEME_COLORS } from '../../core/theme/theme.constants';
 import { toArabicErrorMessage } from '../../core/api/errorMessage';
 import {
   ALLOWED_TYPES_AR,
@@ -189,7 +190,7 @@ export const MediaUploadField: React.FC<MediaUploadFieldProps> = ({
             <Progress
               percent={progress.percent}
               status={progress.phase === 'VERIFYING' ? 'active' : 'normal'}
-              strokeColor="#c9a227"
+              strokeColor={THEME_COLORS.goldPrimary}
             />
             <Text type="secondary" className="text-xs" dir="rtl">
               {formatBytesAr(progress.loadedBytes)} من {formatBytesAr(progress.totalBytes)}

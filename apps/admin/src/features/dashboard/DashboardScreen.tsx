@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { THEME_COLORS } from '../../core/theme/theme.constants';
 import {
   Row,
   Col,
@@ -242,7 +243,7 @@ export const DashboardScreen: React.FC = () => {
                 title={<span className="text-cream-300 font-cairo text-xs font-semibold">إجمالي المواد المنشورة</span>}
                 value={analyticsData?.totalContent ?? '—'}
                 prefix={<BookOutlined className="text-gold-400 ml-2" />}
-                valueStyle={{ color: '#D4AF37', fontWeight: 800, fontFamily: 'Cairo' }}
+                valueStyle={{ color: THEME_COLORS.goldPrimary, fontWeight: 800, fontFamily: 'Cairo' }}
               />
               <div className="mt-2 text-[11px] text-cream-400 font-cairo flex items-center justify-between">
                 <span>دروس، مقالات، فتاوى</span>
@@ -257,7 +258,7 @@ export const DashboardScreen: React.FC = () => {
                 title={<span className="text-cream-300 font-cairo text-xs font-semibold">المستمعون والزوار</span>}
                 value={analyticsData?.totalViews ?? '—'}
                 prefix={<SoundOutlined className="text-gold-400 ml-2" />}
-                valueStyle={{ color: '#E5C158', fontWeight: 800, fontFamily: 'Cairo' }}
+                valueStyle={{ color: THEME_COLORS.goldHover, fontWeight: 800, fontFamily: 'Cairo' }}
               />
               <div className="mt-2 text-[11px] text-cream-400 font-cairo flex items-center justify-between">
                 <span>إجمالي الاستماع والمطالعة</span>
@@ -272,7 +273,7 @@ export const DashboardScreen: React.FC = () => {
                 title={<span className="text-cream-300 font-cairo text-xs font-semibold">المستخدمون المسجلون</span>}
                 value={analyticsData?.totalUsers ?? '—'}
                 prefix={<UserOutlined className="text-gold-400 ml-2" />}
-                valueStyle={{ color: '#FDFBF7', fontWeight: 800, fontFamily: 'Cairo' }}
+                valueStyle={{ color: THEME_COLORS.textPrimary, fontWeight: 800, fontFamily: 'Cairo' }}
               />
               <div className="mt-2 text-[11px] text-cream-400 font-cairo flex items-center justify-between">
                 <span>طلاب العلم والمتابعون</span>
@@ -287,7 +288,7 @@ export const DashboardScreen: React.FC = () => {
                 title={<span className="text-cream-300 font-cairo text-xs font-semibold">المسودات قيد المراجعة</span>}
                 value={analyticsData?.activeDrafts ?? '—'}
                 prefix={<ClockCircleOutlined className="text-amber-400 ml-2" />}
-                valueStyle={{ color: '#F59E0B', fontWeight: 800, fontFamily: 'Cairo' }}
+                valueStyle={{ color: THEME_COLORS.warning, fontWeight: 800, fontFamily: 'Cairo' }}
               />
               <div className="mt-2 text-[11px] text-cream-400 font-cairo flex items-center justify-between">
                 <span>بانتظار اعتماد النشر</span>
